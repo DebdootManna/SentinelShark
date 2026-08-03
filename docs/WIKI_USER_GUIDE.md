@@ -4,7 +4,7 @@ Welcome to the **SentinelShark User & Operator Guide**. This guide explains how 
 
 ---
 
-## 🛠️ Installation & Setup
+## Installation & Setup
 
 ### 1. System Requirements
 - **Operating System**: macOS, Linux, or Windows.
@@ -30,7 +30,7 @@ python run.py
 
 ---
 
-## 🔑 Setting Up VirusTotal & AbuseIPDB API Keys
+## Setting Up VirusTotal & AbuseIPDB API Keys
 
 SentinelShark enriches public IP addresses in real time with threat intelligence.
 
@@ -50,7 +50,7 @@ python run.py
 
 ---
 
-## 📡 Capturing Network Traffic
+## Capturing Network Traffic
 
 ### 1. Live Sniffing
 1. Select your target network interface from the **Interface** dropdown (e.g. `en0`, `eth0`, `any`).
@@ -76,7 +76,7 @@ If you want to test SentinelShark without active network activity or TShark inst
 
 ---
 
-## 🔍 Packet Inspection & Analysis
+## Packet Inspection & Analysis
 
 ### 1. Packet List Table
 - Displays packet number, timestamp, source IP, destination IP, protocol, length, info string, and threat score.
@@ -97,7 +97,7 @@ If you want to test SentinelShark without active network activity or TShark inst
 
 ---
 
-## 📊 NIDS Dashboard & Stat Counters
+## NIDS Dashboard & Stat Counters
 Located on the top right panel:
 - **Total Packets**: Total packet count processed.
 - **Data Traffic**: Cumulative bandwidth volume (KB / MB).

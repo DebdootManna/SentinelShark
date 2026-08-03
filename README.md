@@ -1,4 +1,4 @@
-# SentinelShark 🦈
+# SentinelShark
 > **Modern Desktop Network Intrusion Detection & Analysis System (NIDS)**
 
 SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, `httpx`, and **SQLite**. It dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence from **VirusTotal** and **AbuseIPDB**.
@@ -7,7 +7,7 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
 - **Live & Offline Packet Capture**: Sniff live interface traffic using `PyShark` or analyze `.pcap` / `.pcapng` capture files.
 - **Graceful Fallback & Mock Generator**: Built-in high-fidelity Mock Traffic Generator ensures SentinelShark functions out-of-the-box even when `tshark` is not installed on the system.
@@ -25,7 +25,7 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 sentinelshark/
@@ -58,7 +58,7 @@ sentinelshark/
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### 1. Prerequisites
 - Python 3.10+
@@ -85,7 +85,7 @@ python run.py
 
 ---
 
-## 🔑 Threat Intelligence API Configuration
+## Threat Intelligence API Configuration
 
 You can configure API keys via environment variables or inside the GUI:
 
@@ -100,7 +100,7 @@ You can configure API keys via environment variables or inside the GUI:
 
 ---
 
-## 🧪 Running Unit Tests
+## Running Unit Tests
 
 Run the test suite to verify core components, IP filtering, and SQLite caching logic:
 ```bash
@@ -109,5 +109,5 @@ python -m unittest discover tests
 
 ---
 
-## 🎨 Design & Aesthetics
+## Design & Aesthetics
 SentinelShark features a slate/cyber dark mode (`#0f172a`, `#1e293b`) with neon cyan accents (`#06b6d4`), emerald safe indicators (`#10b981`), and crimson threat highlights (`#ef4444`).

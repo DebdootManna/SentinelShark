@@ -4,7 +4,7 @@ Welcome to the **SentinelShark NIDS Architecture Wiki**. This document provides 
 
 ---
 
-## 📐 System High-Level Architecture
+## System High-Level Architecture
 
 SentinelShark is designed around a decoupled, non-blocking asynchronous architecture combining **PyQt6** for user interface rendering, **qasync** for `asyncio` event loop integration, **PyShark** for packet dissection, and **httpx** for Threat Intelligence REST API enrichment.
 
@@ -37,7 +37,7 @@ SentinelShark is designed around a decoupled, non-blocking asynchronous architec
 
 ---
 
-## 🧵 Threading & Async Model
+## Threading & Async Model
 
 Desktop GUIs require high frame-rate responsiveness (60 FPS). Heavy network operations (packet sniffing and HTTP REST API calls) will freeze the GUI if run on the main Qt thread.
 
@@ -54,7 +54,7 @@ Desktop GUIs require high frame-rate responsiveness (60 FPS). Heavy network oper
 
 ---
 
-## 🛡️ Threat Intelligence Pipeline
+## Threat Intelligence Pipeline
 
 ```
 Captured Packet -> Extract Destination/Source IP
@@ -88,7 +88,7 @@ Is IP Public & Routable? (Filter 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.
 
 ---
 
-## 🗄️ Database Schema (`threatcache.db`)
+## Database Schema (`threatcache.db`)
 
 The persistent threat intelligence cache is powered by SQLite.
 
@@ -108,16 +108,16 @@ The persistent threat intelligence cache is powered by SQLite.
 
 ---
 
-## 🎨 Theme & Color-Coding Rules
+## Theme & Color-Coding Rules
 
 SentinelShark enforces threat classification color-coding:
 
-- 🟢 **Safe Traffic (Green)**:
+- **Safe Traffic (Green)**:
   - **Condition**: AbuseIPDB score = 0% AND VirusTotal Malicious count = 0.
   - **Style**: Dark emerald background (`#064e3b`), mint text (`#d1fae5`).
-- 🟡 **Low-Medium Risk (Amber / Orange)**:
+- **Low-Medium Risk (Amber / Orange)**:
   - **Condition**: AbuseIPDB score 1% - 30% OR VirusTotal Suspicious count > 0.
   - **Style**: Amber background (`#78350f`), warm yellow text (`#fef3c7`).
-- 🔴 **Critical Threat (Crimson Red)**:
+- **Critical Threat (Crimson Red)**:
   - **Condition**: AbuseIPDB score > 30% OR VirusTotal Malicious count > 0.
   - **Style**: Crimson red background (`#7f1d1d`), bold light-red text (`#fecaca`).

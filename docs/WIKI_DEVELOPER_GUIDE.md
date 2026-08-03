@@ -4,7 +4,7 @@ Welcome to the **SentinelShark Developer & Extension Guide**. This guide provide
 
 ---
 
-## 🛠️ Development Environment Setup
+## Development Environment Setup
 
 ### 1. Requirements
 - Python 3.10+
@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 ---
 
-## 💻 Module Overview
+## Module Overview
 
 | Module Path | Primary Responsibility |
 | :--- | :--- |
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🔌 Extending Threat Intelligence Feeds
+## Extending Threat Intelligence Feeds
 
 To add a new Threat Intelligence provider (e.g. AlienVault OTX, Shodan, or AbuseCH):
 
@@ -62,7 +62,7 @@ async def fetch_alienvault_otx(self, client: httpx.AsyncClient, ip: str) -> Dict
 
 ---
 
-## 🧬 Adding Custom Protocol Dissectors
+## Adding Custom Protocol Dissectors
 
 To support custom protocol layer dissection in `app/core/parser.py`:
 
@@ -81,7 +81,7 @@ if hasattr(packet, "custom_proto"):
 
 ---
 
-## 🧪 Running Unit Tests
+## Running Unit Tests
 
 SentinelShark uses Python's standard `unittest` framework.
 
