@@ -84,9 +84,9 @@ class PacketTable(QTableWidget):
         ]
 
         # Right-align number & length
-        items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.VCenter)
-        items[5].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.VCenter)
-        items[7].setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.VCenter)
+        items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        items[5].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        items[7].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
         for col, item in enumerate(items):
             self.setItem(row, col, item)
