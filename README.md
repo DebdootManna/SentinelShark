@@ -3,6 +3,8 @@
 
 SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, `httpx`, and **SQLite**. It dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence from **VirusTotal** and **AbuseIPDB**.
 
+![mock mode screenshot](image.png)
+
 ---
 
 ## 🌟 Key Features
