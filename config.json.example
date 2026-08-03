@@ -1,0 +1,10 @@
+{
+  "abuseipdb_api_key": "",
+  "virustotal_api_key": "",
+  "cache_ttl_hours": 24,
+  "max_requests_per_minute": 30,
+  "tshark_path": "",
+  "default_interface": "auto",
+  "mock_mode": false,
+  "auto_scroll": true
+}

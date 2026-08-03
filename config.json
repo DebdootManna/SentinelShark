@@ -1,0 +1,10 @@
+{
+  "abuseipdb_api_key": "891170a85d50711df665b7fc5a4b66aed20742f5bec74bf0797af5c220320c17c135fa793a84cf36",
+  "virustotal_api_key": "c14ae9d6350c78281793495c215a3798d1c03e89045596231f87e1d563290640",
+  "cache_ttl_hours": 24,
+  "max_requests_per_minute": 30,
+  "tshark_path": "",
+  "default_interface": "auto",
+  "mock_mode": false,
+  "auto_scroll": true
+}
