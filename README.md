@@ -65,7 +65,7 @@ sentinelshark/
 ### 2. Installation
 ```bash
 # Clone repository
-git clone https://github.com/user/sentinelshark.git
+git clone https://github.com/DebdootManna/sentinelshark.git
 cd sentinelshark
 
 # Create virtual environment
