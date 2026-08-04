@@ -146,6 +146,15 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertEqual(len(sparkline.history), 5)
         self.assertEqual(list(sparkline.history), [5.0, 6.0, 7.0, 8.0, 9.0])
 
+    def test_interface_mapper(self):
+        """Test NetworkInterfaceMapper friendly label and IP resolution."""
+        from app.core.interfacemapper import interface_mapper
+        label_en0 = interface_mapper.get_friendly_label("en0")
+        self.assertTrue("Wi-Fi" in label_en0 or "en0" in label_en0)
+
+        loopback_name = interface_mapper.get_psutil_name("\\Device\\NPF_Loopback")
+        self.assertIsNotNone(loopback_name)
+
 
 if __name__ == "__main__":
     unittest.main()

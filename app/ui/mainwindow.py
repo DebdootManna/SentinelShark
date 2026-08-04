@@ -20,27 +20,7 @@ from app.ui.components.packetdetail import PacketDetailView
 from app.ui.components.hexview import HexView
 from app.ui.components.statspanel import StatsPanel
 from app.ui.components.sparkline import SparklineWidget
-
-
-def get_friendly_iface_name(iface: str) -> str:
-    """Return friendly human-readable label for network interface."""
-    name_map = {
-        "en0": "Wi-Fi / Primary Ethernet (en0)",
-        "lo0": "Local Loopback (lo0)",
-        "lo": "Local Loopback (lo)",
-        "eth0": "Ethernet (eth0)",
-        "wlan0": "Wireless Network (wlan0)",
-        "awdl0": "Apple Direct Link (awdl0)",
-        "llw0": "Low Latency WLAN (llw0)",
-        "bridge0": "Network Bridge (bridge0)",
-    }
-    if iface in name_map:
-        return name_map[iface]
-    if iface.startswith("utun"):
-        return f"VPN Tunnel ({iface})"
-    if iface.startswith("anpi"):
-        return f"Apple Network Interface ({iface})"
-    return f"Interface ({iface})"
+from app.core.interfacemapper import interface_mapper
 
 
 class InterfaceSelectionDialog(QDialog):
@@ -59,6 +39,9 @@ class InterfaceSelectionDialog(QDialog):
         self.last_time = time.time()
         self.sparklines = {}
         self.rate_labels = {}
+
+        # Refresh OS interface mappings
+        interface_mapper.refresh()
 
         self.init_ui(interfaces, current_iface)
 
@@ -89,8 +72,8 @@ class InterfaceSelectionDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
-        self.table.setColumnWidth(0, 220)
-        self.table.setColumnWidth(1, 130)
+        self.table.setColumnWidth(0, 240)
+        self.table.setColumnWidth(1, 140)
         self.table.setColumnWidth(3, 100)
 
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -99,33 +82,25 @@ class InterfaceSelectionDialog(QDialog):
         self.table.verticalHeader().setVisible(False)
         self.table.itemDoubleClicked.connect(self.on_row_double_clicked)
 
-        # Fetch IP addresses
-        if_addrs = {}
-        try:
-            addrs = psutil.net_if_addrs()
-            for if_name, addr_list in addrs.items():
-                for addr in addr_list:
-                    if str(addr.family).endswith("AF_INET") or addr.family == 2:
-                        if_addrs[if_name] = addr.address
-                        break
-        except Exception:
-            pass
+        norm_current = current_iface.strip("\\").lower()
 
         selected_row = 0
         for row, iface in enumerate(interfaces):
             # 1. Interface Name
-            friendly_name = get_friendly_iface_name(iface)
+            friendly_name = interface_mapper.get_friendly_label(iface)
             item_name = QTableWidgetItem(friendly_name)
+            item_name.setToolTip(f"Full Identifier: {iface}")
             item_name.setData(Qt.ItemDataRole.UserRole, iface)
 
             # Highlight default selected interface
-            if iface == current_iface:
+            norm_iface = iface.strip("\\").lower()
+            if norm_iface == norm_current or iface == current_iface:
                 selected_row = row
 
             self.table.setItem(row, 0, item_name)
 
             # 2. IP Address
-            ip_str = if_addrs.get(iface, "N/A")
+            ip_str = interface_mapper.get_ip_address(iface)
             item_ip = QTableWidgetItem(ip_str)
             item_ip.setForeground(QColor("#94a3b8"))
             self.table.setItem(row, 1, item_ip)
@@ -168,7 +143,8 @@ class InterfaceSelectionDialog(QDialog):
             return
 
         for iface in self.interfaces:
-            cur = counters.get(iface)
+            psutil_name = interface_mapper.get_psutil_name(iface)
+            cur = counters.get(psutil_name) or counters.get(iface)
             prev = self.last_counters.get(iface)
 
             rate_kb = 0.0
