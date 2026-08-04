@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QHeaderView, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 )
 
+from app.config import config
+
 
 class PacketDetailView(QWidget):
     """

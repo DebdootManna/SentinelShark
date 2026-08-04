@@ -26,13 +26,19 @@ class ThreatIntelQueueManager:
 
     def __init__(self):
         self.signals = QueueManagerSignals()
-        self.queue: asyncio.Queue = asyncio.Queue()
+        self._queue: Optional[asyncio.Queue] = None
         self.pending_ips: Set[str] = set()
         self.in_progress_ips: Set[str] = set()
         self.is_running = False
         self.worker_task: Optional[asyncio.Task] = None
         self.backoff_delay = 1.0
         self.max_backoff = 60.0
+
+    @property
+    def queue(self) -> asyncio.Queue:
+        if self._queue is None:
+            self._queue = asyncio.Queue()
+        return self._queue
 
     def enqueue_ip(self, ip: str):
         """Enqueue an IP for threat intelligence lookup."""
@@ -88,9 +94,15 @@ class ThreatIntelQueueManager:
                 pass
 
     def clear(self):
-        """Clear queue tracking sets."""
+        """Clear queue tracking sets and pending queue items."""
         self.pending_ips.clear()
         self.in_progress_ips.clear()
+        if self._queue is not None:
+            while not self._queue.empty():
+                try:
+                    self._queue.get_nowait()
+                except Exception:
+                    break
         self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
 
     async def _worker_loop(self):

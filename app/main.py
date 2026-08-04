@@ -10,6 +10,13 @@ from app.ui.mainwindow import MainWindow
 
 def main():
     """Application entrypoint with qasync event loop integration."""
+    if sys.platform == "win32":
+        # On Windows, set SelectorEventLoopPolicy for robust qasync & httpx socket I/O compatibility
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception as e:
+            print(f"[Main] Warning setting WindowsSelectorEventLoopPolicy: {e}")
+
     app = QApplication(sys.argv)
     app.setApplicationName("SentinelShark NIDS")
 

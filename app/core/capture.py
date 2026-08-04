@@ -69,13 +69,14 @@ class LiveCaptureThread(QThread):
                 self._capture = pyshark.FileCapture(
                     self.pcap_file,
                     tshark_path=tshark_exec,
-                    include_raw=True
+                    include_raw=True,
+                    use_json=True
                 )
             else:
                 target_iface = self.interface if (self.interface and self.interface != "auto") else None
                 self.status_changed.emit(f"Starting Live Capture on {target_iface or 'default interface'}...")
                 
-                kwargs = {"tshark_path": tshark_exec, "include_raw": True}
+                kwargs = {"tshark_path": tshark_exec, "include_raw": True, "use_json": True}
                 if target_iface:
                     kwargs["interface"] = target_iface
                 if self.bpf_filter:
