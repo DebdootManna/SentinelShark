@@ -102,6 +102,37 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertIn("ascii_str", dissected)
         self.assertEqual(dissected["payload_md5"], calculate_payload_hash(b"DNS_QUERY_DATA")["md5"])
 
+    def test_config_env_storage(self):
+        """Test that Config saves API keys to .env and non-secrets to config.json."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_config = Path(tmp_dir) / "config.json"
+            tmp_env = Path(tmp_dir) / ".env"
+
+            cfg = Config(config_file=tmp_config, env_file=tmp_env)
+            cfg.abuseipdb_api_key = "test_abuse_key_123"
+            cfg.virustotal_api_key = "test_vt_key_456"
+            cfg.default_interface = "wlan0"
+            cfg.save()
+
+            # Verify .env contents
+            with open(tmp_env, "r") as f:
+                env_text = f.read()
+            self.assertIn("ABUSEIPDB_API_KEY=test_abuse_key_123", env_text)
+            self.assertIn("VIRUSTOTAL_API_KEY=test_vt_key_456", env_text)
+
+            # Verify config.json does NOT contain API keys
+            with open(tmp_config, "r") as f:
+                json_text = f.read()
+            self.assertNotIn("abuseipdb_api_key", json_text)
+            self.assertNotIn("virustotal_api_key", json_text)
+            self.assertIn('"default_interface": "wlan0"', json_text)
+
+            # Load back up in new Config instance
+            cfg2 = Config(config_file=tmp_config, env_file=tmp_env)
+            self.assertEqual(cfg2.abuseipdb_api_key, "test_abuse_key_123")
+            self.assertEqual(cfg2.virustotal_api_key, "test_vt_key_456")
+            self.assertEqual(cfg2.default_interface, "wlan0")
+
 
 if __name__ == "__main__":
     unittest.main()

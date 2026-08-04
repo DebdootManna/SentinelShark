@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QIcon, QFont, QAction
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QToolBar,
@@ -16,6 +16,55 @@ from app.ui.components.packettable import PacketTable
 from app.ui.components.packetdetail import PacketDetailView
 from app.ui.components.hexview import HexView
 from app.ui.components.statspanel import StatsPanel
+
+
+class InterfaceSelectionDialog(QDialog):
+    """Startup modal for choosing network interface for packet capture."""
+
+    def __init__(self, interfaces: list, current_iface: str = "en0", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("SentinelShark - Select Network Interface")
+        self.setMinimumWidth(440)
+        self.selected_interface = current_iface
+        self.init_ui(interfaces, current_iface)
+
+    def init_ui(self, interfaces: list, current_iface: str):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        title_lbl = QLabel("<b>Select Network Interface for Packet Capture</b>")
+        title_lbl.setStyleSheet("font-size: 14px; color: #38bdf8;")
+        layout.addWidget(title_lbl)
+
+        desc_lbl = QLabel(
+            "Please choose which network interface SentinelShark should examine and intercept live packets from:"
+        )
+        desc_lbl.setWordWrap(True)
+        desc_lbl.setStyleSheet("color: #94a3b8;")
+        layout.addWidget(desc_lbl)
+
+        form = QFormLayout()
+        self.iface_combo = QComboBox()
+        self.iface_combo.addItems(interfaces)
+
+        idx = self.iface_combo.findText(current_iface)
+        if idx >= 0:
+            self.iface_combo.setCurrentIndex(idx)
+
+        form.addRow("Interface:", self.iface_combo)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Select Interface")
+        buttons.accepted.connect(self.save_and_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def save_and_accept(self):
+        self.selected_interface = self.iface_combo.currentText()
+        self.accept()
 
 
 class APISettingsDialog(QDialog):
@@ -88,6 +137,7 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         self.wire_signals()
+        QTimer.singleShot(200, self.prompt_interface_selection)
 
     def init_ui(self):
         # 1. Menu Bar
@@ -151,7 +201,8 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
-        self.mock_btn = QPushButton("Mock Mode")
+        self.mock_btn = QPushButton("Mock Mode (ON)" if config.mock_mode else "Mock Mode")
+        self.mock_btn.setObjectName("mockBtn")
         self.mock_btn.setCheckable(True)
         self.mock_btn.setChecked(config.mock_mode)
         self.mock_btn.toggled.connect(self.toggle_mock_mode)
@@ -299,6 +350,7 @@ class MainWindow(QMainWindow):
     def toggle_mock_mode(self, enabled: bool):
         config.mock_mode = enabled
         config.save()
+        self.mock_btn.setText("Mock Mode (ON)" if enabled else "Mock Mode")
         mode_str = "Mock Mode Active" if enabled else "Live Mode Active"
         self.statusbar.showMessage(f"Switched to {mode_str}", 4000)
 
@@ -314,6 +366,7 @@ class MainWindow(QMainWindow):
         dlg = APISettingsDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.mock_btn.setChecked(config.mock_mode)
+            self.mock_btn.setText("Mock Mode (ON)" if config.mock_mode else "Mock Mode")
             self.statusbar.showMessage("Configuration saved successfully.", 3000)
 
     def update_capture_status(self, status_msg: str):
@@ -321,6 +374,20 @@ class MainWindow(QMainWindow):
 
     def show_capture_error(self, err_msg: str):
         self.statusbar.showMessage(err_msg, 5000)
+
+    def prompt_interface_selection(self):
+        """Display popup dialog on application startup for network interface selection."""
+        interfaces = get_available_interfaces()
+        current_iface = self.iface_combo.currentText() or config.default_interface or "en0"
+        dlg = InterfaceSelectionDialog(interfaces, current_iface, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            selected = dlg.selected_interface
+            idx = self.iface_combo.findText(selected)
+            if idx >= 0:
+                self.iface_combo.setCurrentIndex(idx)
+            config.default_interface = selected
+            config.save()
+            self.statusbar.showMessage(f"Selected network interface: {selected}", 4000)
 
     def show_about(self):
         QMessageBox.about(

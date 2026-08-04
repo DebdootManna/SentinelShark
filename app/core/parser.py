@@ -102,9 +102,21 @@ class PacketDissector:
         raw_bytes = b""
         try:
             if hasattr(packet, "get_raw_packet"):
-                raw_bytes = packet.get_raw_packet()
+                raw = packet.get_raw_packet()
+                if isinstance(raw, (bytes, bytearray)):
+                    raw_bytes = bytes(raw)
+                elif isinstance(raw, str):
+                    raw_bytes = bytes.fromhex(raw)
         except Exception:
             pass
+
+        if not raw_bytes and hasattr(packet, "frame_raw"):
+            try:
+                frame_val = getattr(packet.frame_raw, "value", "")
+                if frame_val:
+                    raw_bytes = bytes.fromhex(frame_val)
+            except Exception:
+                pass
 
         hex_dump, ascii_str = format_hex_dump(raw_bytes)
         hashes = calculate_payload_hash(raw_bytes)
