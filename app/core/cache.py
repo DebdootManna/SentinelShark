@@ -26,7 +26,8 @@ class ThreatCache:
 
     def _init_db(self):
         """Create threat cache table if it does not exist and ensure migrations."""
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS ip_threat_cache (
@@ -47,6 +48,8 @@ class ThreatCache:
             if "ipinfo_data" not in columns:
                 cursor.execute("ALTER TABLE ip_threat_cache ADD COLUMN ipinfo_data TEXT DEFAULT '{}'")
             conn.commit()
+        finally:
+            conn.close()
 
     def _is_complete(self, data: Dict[str, Any]) -> bool:
         """Check if cached entry contains data for all currently configured API services."""
@@ -63,10 +66,13 @@ class ThreatCache:
     def clear_all(self):
         """Purge all records from SQLite and in-memory cache."""
         self.mem_cache.clear()
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM ip_threat_cache")
             conn.commit()
+        finally:
+            conn.close()
 
     def get(self, ip: str) -> Optional[Dict[str, Any]]:
         """Retrieve threat data for an IP if present, complete, and unexpired."""
@@ -79,7 +85,8 @@ class ThreatCache:
                 del self.mem_cache[ip]
 
         now = int(time.time())
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT * FROM ip_threat_cache WHERE ip = ?", (ip,)
@@ -129,6 +136,9 @@ class ThreatCache:
                     # Expired entry
                     cursor.execute("DELETE FROM ip_threat_cache WHERE ip = ?", (ip,))
                     conn.commit()
+        finally:
+            conn.close()
+
         return None
 
     def set(self, ip: str, threat_data: Dict[str, Any]):
@@ -144,7 +154,8 @@ class ThreatCache:
         ipinfo_details = threat_data.get("ipinfo_details", {})
         ipinfo_json = json.dumps(ipinfo_details) if isinstance(ipinfo_details, dict) else "{}"
 
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO ip_threat_cache 
@@ -162,6 +173,8 @@ class ThreatCache:
                     updated_at = excluded.updated_at
             """, (ip, abuse_score, vt_malicious, vt_suspicious, vt_harmless, country, reports_count, domain, ipinfo_json, now))
             conn.commit()
+        finally:
+            conn.close()
 
         # Update in-memory cache
         if "ipinfo_details" in threat_data and isinstance(threat_data["ipinfo_details"], dict):
@@ -184,10 +197,13 @@ class ThreatCache:
     def purge_expired(self):
         """Purge records older than TTL from SQLite."""
         threshold = int(time.time()) - self.ttl_seconds
-        with self._get_connection() as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM ip_threat_cache WHERE updated_at < ?", (threshold,))
             conn.commit()
+        finally:
+            conn.close()
 
 
 # Global cache instance
