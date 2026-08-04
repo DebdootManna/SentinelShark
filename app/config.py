@@ -78,72 +78,117 @@ class Config:
         self.load()
 
     def load(self):
-        """Load settings from .env (API keys) and config.json (app settings)."""
+        """
+        Load settings:
+        - API Keys & Local Machine Settings (DEFAULT_INTERFACE, MOCK_MODE, TSHARK_PATH) from .env / env vars.
+        - Shared App Defaults from config.json.
+        """
         # 1. Read .env file & Environment Variables
         env_vars = parse_env_file(self.env_file)
-        self.abuseipdb_api_key = os.getenv("ABUSEIPDB_API_KEY") or env_vars.get("ABUSEIPDB_API_KEY", "")
-        self.virustotal_api_key = os.getenv("VIRUSTOTAL_API_KEY") or env_vars.get("VIRUSTOTAL_API_KEY", "")
 
-        # 2. Read config.json
+        # 2. Read config.json defaults
+        json_data = {}
         needs_sanitization = False
         if self.config_file.exists():
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    json_data = json.load(f)
 
                     # Check for legacy API keys in config.json and migrate to .env
-                    legacy_abuse = data.get("abuseipdb_api_key")
-                    legacy_vt = data.get("virustotal_api_key")
+                    legacy_abuse = json_data.get("abuseipdb_api_key")
+                    legacy_vt = json_data.get("virustotal_api_key")
                     if legacy_abuse or legacy_vt:
                         needs_sanitization = True
                         if legacy_abuse and not self.abuseipdb_api_key:
                             self.abuseipdb_api_key = legacy_abuse
                         if legacy_vt and not self.virustotal_api_key:
                             self.virustotal_api_key = legacy_vt
-
-                    self.cache_ttl_hours = data.get("cache_ttl_hours", self.cache_ttl_hours)
-                    self.max_requests_per_minute = data.get(
-                        "max_requests_per_minute", self.max_requests_per_minute
-                    )
-                    self.tshark_path = data.get("tshark_path", self.tshark_path)
-                    self.default_interface = data.get("default_interface", self.default_interface)
-                    self.mock_mode = data.get("mock_mode", self.mock_mode)
-                    self.auto_scroll = data.get("auto_scroll", self.auto_scroll)
             except Exception as e:
                 print(f"[Config] Warning: Failed to parse {self.config_file}: {e}")
 
-        # If legacy keys were found in config.json, save to .env and sanitize config.json
+        # API Keys (prefer env vars / .env file)
+        self.abuseipdb_api_key = (
+            os.getenv("ABUSEIPDB_API_KEY")
+            or env_vars.get("ABUSEIPDB_API_KEY")
+            or self.abuseipdb_api_key
+        )
+        self.virustotal_api_key = (
+            os.getenv("VIRUSTOTAL_API_KEY")
+            or env_vars.get("VIRUSTOTAL_API_KEY")
+            or self.virustotal_api_key
+        )
+
+        # Local Machine Settings (stored exclusively in .env so config.json remains un-mutated in git)
+        self.default_interface = (
+            os.getenv("DEFAULT_INTERFACE")
+            or env_vars.get("DEFAULT_INTERFACE")
+            or json_data.get("default_interface", "auto")
+        )
+
+        mock_env = os.getenv("MOCK_MODE") or env_vars.get("MOCK_MODE")
+        if mock_env is not None:
+            self.mock_mode = str(mock_env).lower() in ("true", "1", "yes")
+        else:
+            self.mock_mode = json_data.get("mock_mode", False)
+
+        auto_scroll_env = os.getenv("AUTO_SCROLL") or env_vars.get("AUTO_SCROLL")
+        if auto_scroll_env is not None:
+            self.auto_scroll = str(auto_scroll_env).lower() in ("true", "1", "yes")
+        else:
+            self.auto_scroll = json_data.get("auto_scroll", True)
+
+        self.tshark_path = (
+            os.getenv("TSHARK_PATH")
+            or env_vars.get("TSHARK_PATH")
+            or json_data.get("tshark_path", "")
+        )
+
+        ttl_env = os.getenv("CACHE_TTL_HOURS") or env_vars.get("CACHE_TTL_HOURS")
+        if ttl_env is not None:
+            try:
+                self.cache_ttl_hours = int(ttl_env)
+            except ValueError:
+                self.cache_ttl_hours = json_data.get("cache_ttl_hours", 24)
+        else:
+            self.cache_ttl_hours = json_data.get("cache_ttl_hours", 24)
+
+        rate_env = os.getenv("MAX_REQUESTS_PER_MINUTE") or env_vars.get("MAX_REQUESTS_PER_MINUTE")
+        if rate_env is not None:
+            try:
+                self.max_requests_per_minute = int(rate_env)
+            except ValueError:
+                self.max_requests_per_minute = json_data.get("max_requests_per_minute", 30)
+        else:
+            self.max_requests_per_minute = json_data.get("max_requests_per_minute", 30)
+
+        # If legacy keys were found in config.json, save to .env
         if needs_sanitization:
-            print("[Config] Migrating legacy API keys from config.json to .env for security...")
+            print("[Config] Migrating legacy API keys to .env for security...")
             self.save()
 
     def save(self):
-        """Save secret API keys to .env and non-sensitive app settings to config.json."""
-        # Save secrets to .env
+        """Save ALL local machine configuration & secrets exclusively to .env so git status remains 100% clean."""
         save_env_file(
             self.env_file,
             {
                 "ABUSEIPDB_API_KEY": self.abuseipdb_api_key,
                 "VIRUSTOTAL_API_KEY": self.virustotal_api_key,
+                "DEFAULT_INTERFACE": self.default_interface,
+                "MOCK_MODE": "true" if self.mock_mode else "false",
+                "AUTO_SCROLL": "true" if self.auto_scroll else "false",
+                "CACHE_TTL_HOURS": str(self.cache_ttl_hours),
+                "MAX_REQUESTS_PER_MINUTE": str(self.max_requests_per_minute),
+                "TSHARK_PATH": self.tshark_path,
             },
         )
         os.environ["ABUSEIPDB_API_KEY"] = self.abuseipdb_api_key
         os.environ["VIRUSTOTAL_API_KEY"] = self.virustotal_api_key
-
-        # Save non-sensitive data to config.json (WITHOUT API keys)
-        data = {
-            "cache_ttl_hours": self.cache_ttl_hours,
-            "max_requests_per_minute": self.max_requests_per_minute,
-            "tshark_path": self.tshark_path,
-            "default_interface": self.default_interface,
-            "mock_mode": self.mock_mode,
-            "auto_scroll": self.auto_scroll,
-        }
-        try:
-            with open(self.config_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"[Config] Error saving configuration: {e}")
+        os.environ["DEFAULT_INTERFACE"] = self.default_interface
+        os.environ["MOCK_MODE"] = "true" if self.mock_mode else "false"
+        os.environ["AUTO_SCROLL"] = "true" if self.auto_scroll else "false"
+        os.environ["CACHE_TTL_HOURS"] = str(self.cache_ttl_hours)
+        os.environ["MAX_REQUESTS_PER_MINUTE"] = str(self.max_requests_per_minute)
+        os.environ["TSHARK_PATH"] = self.tshark_path
 
     def find_tshark(self) -> str | None:
         """Find executable path for tshark on host."""

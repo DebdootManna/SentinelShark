@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import tempfile
@@ -103,15 +104,22 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertEqual(dissected["payload_md5"], calculate_payload_hash(b"DNS_QUERY_DATA")["md5"])
 
     def test_config_env_storage(self):
-        """Test that Config saves API keys to .env and non-secrets to config.json."""
+        """Test that Config saves API keys and all local machine settings to .env exclusively."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_config = Path(tmp_dir) / "config.json"
             tmp_env = Path(tmp_dir) / ".env"
+
+            # Create default config.json
+            with open(tmp_config, "w") as f:
+                json.dump({"default_interface": "auto", "cache_ttl_hours": 24}, f)
 
             cfg = Config(config_file=tmp_config, env_file=tmp_env)
             cfg.abuseipdb_api_key = "test_abuse_key_123"
             cfg.virustotal_api_key = "test_vt_key_456"
             cfg.default_interface = "wlan0"
+            cfg.mock_mode = True
+            cfg.auto_scroll = False
+            cfg.cache_ttl_hours = 48
             cfg.save()
 
             # Verify .env contents
@@ -119,19 +127,19 @@ class TestSentinelSharkCore(unittest.TestCase):
                 env_text = f.read()
             self.assertIn("ABUSEIPDB_API_KEY=test_abuse_key_123", env_text)
             self.assertIn("VIRUSTOTAL_API_KEY=test_vt_key_456", env_text)
-
-            # Verify config.json does NOT contain API keys
-            with open(tmp_config, "r") as f:
-                json_text = f.read()
-            self.assertNotIn("abuseipdb_api_key", json_text)
-            self.assertNotIn("virustotal_api_key", json_text)
-            self.assertIn('"default_interface": "wlan0"', json_text)
+            self.assertIn("DEFAULT_INTERFACE=wlan0", env_text)
+            self.assertIn("MOCK_MODE=true", env_text)
+            self.assertIn("AUTO_SCROLL=false", env_text)
+            self.assertIn("CACHE_TTL_HOURS=48", env_text)
 
             # Load back up in new Config instance
             cfg2 = Config(config_file=tmp_config, env_file=tmp_env)
             self.assertEqual(cfg2.abuseipdb_api_key, "test_abuse_key_123")
             self.assertEqual(cfg2.virustotal_api_key, "test_vt_key_456")
             self.assertEqual(cfg2.default_interface, "wlan0")
+            self.assertTrue(cfg2.mock_mode)
+            self.assertFalse(cfg2.auto_scroll)
+            self.assertEqual(cfg2.cache_ttl_hours, 48)
 
     def test_sparkline_widget(self):
         """Test SparklineWidget history buffer management."""
