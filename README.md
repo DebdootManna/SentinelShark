@@ -1,7 +1,7 @@
 # SentinelShark
 > **Modern Desktop Network Intrusion Detection & Analysis System (NIDS)**
 
-SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, `httpx`, and **SQLite**. It dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence and geolocation data from **VirusTotal**, **AbuseIPDB**, and **IPinfo**.
+SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, `httpx`, and **SQLite**. Tested and verified on both **macOS** and **Windows**, it dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence and geolocation data from **VirusTotal**, **AbuseIPDB**, and **IPinfo**.
 
 ![mock mode screenshot](image.png)
 
@@ -9,20 +9,24 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 
 ## Key Features
 
-- **Live & Offline Packet Capture**: Sniff live interface traffic using `PyShark` or analyze `.pcap` / `.pcapng` capture files.
-- **Graceful Fallback & Mock Generator**: Built-in high-fidelity Mock Traffic Generator ensures SentinelShark functions out-of-the-box even when `tshark` is not installed on the system.
+- **Cross-Platform Compatibility**: Fully tested, optimized, and verified on **macOS** and **Windows 10/11**.
+- **Live & Offline Packet Capture**: Sniff live interface traffic using `PyShark` (tshark/Npcap) or analyze `.pcap` / `.pcapng` capture files.
+- **Graceful Fallback & Mock Generator**: Built-in high-fidelity Mock Traffic Generator ensures SentinelShark functions out-of-the-box even when `tshark` is not installed on the host machine.
 - **Threat Intelligence & Geolocation Enrichment**:
-  - **AbuseIPDB Integration**: Queries Abuse Confidence Scores, total reports, and country codes.
+  - **IPinfo Integration**: Queries and displays complete IP details (hostname, organization, ASN, city, region, country, coordinates, timezone, postal code, anycast flags, privacy indicators, etc.).
+  - **AbuseIPDB Integration**: Queries Abuse Confidence Scores, total report counts, and country codes.
   - **VirusTotal Integration**: Queries IP malicious, suspicious, and harmless engine detection counts.
-  - **IPinfo Integration**: Queries and displays complete IP details (hostname, organization, ASN, city, region, country, coordinates, timezone, postal code, anycast, privacy flags, abuse contacts, carrier info, etc.).
+- **Smart BPF & Real-Time Search Filtering**:
+  - **BPF Sanitizer**: Translates user-friendly shortcuts (`http`, `dns`, `https`, `ssh`, `8.8.8.8`) into valid BPF syntax for TShark while gracefully handling syntax errors.
+  - **Live Table Filter**: Instantly filters packet rows as you type in the search bar.
 - **Smart Non-Routable IP Filtering**: Automatically skips RFC 1918 private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, link-local, and multicast addresses to conserve API limits.
-- **SQLite & In-Memory TTL Caching**: Persists threat intelligence in `threatcache.db` with configurable TTL (24-hour default) and fast in-memory LRU caching.
+- **SQLite & In-Memory TTL Caching**: Persists threat intelligence in `threatcache.db` with configurable TTL (24-hour default), automatic schema migration, and fast in-memory LRU caching.
 - **Rate Limiting & Exponential Backoff**: Async background queue manager handles rate-limiting and automatically performs exponential backoff on HTTP 429 errors.
 - **High-Performance PyQt6 UI**:
-  - **Packet Table**: Color-coded rows (Green = Safe, Yellow = Medium Risk, Red = Critical Threat).
+  - **Packet Table**: Color-coded rows highlighting public IPs (Red = Critical Threat, Amber/Orange = Medium Risk, Green = Safe Public IP).
   - **Packet Inspector**: Interactive collapsible tree breaking down Ethernet, IP, TCP/UDP, DNS, HTTP, and TLS layers alongside exhaustive Threat Intel and IPinfo geolocation details.
   - **Hex Dump Inspector**: Dual Hex & ASCII byte viewer with payload MD5 & SHA256 hashing.
-  - **NIDS Dashboard**: Live packet counts, data throughput metrics, protocol breakdown, and API queue progress bar.
+  - **NIDS Dashboard**: Live packet counts, data throughput metrics, protocol breakdown, and real-time API queue progress.
 
 ---
 
@@ -38,7 +42,7 @@ sentinelshark/
 │   └── test_sentinelshark.py  # Unit test suite
 └── app/
     ├── __init__.py
-    ├── main.py                # PyQt6 + qasync event loop launcher
+    ├── main.py                # PyQt6 + qasync event loop launcher (Windows/macOS compatible)
     ├── config.py              # Configuration & API Key manager
     ├── core/
     │   ├── capture.py         # PyShark & Mock capture worker thread (QThread)
@@ -63,7 +67,7 @@ sentinelshark/
 
 ### 1. Prerequisites
 - Python 3.10+
-- (Optional) `tshark` / `Wireshark` installed for live sniffing on host interfaces. If `tshark` is missing, SentinelShark automatically switches to **Mock Mode**.
+- (Optional) `tshark` / `Wireshark` (Npcap on Windows) installed for live sniffing on host interfaces. If `tshark` is missing, SentinelShark automatically switches to **Mock Mode**.
 
 ### 2. Installation
 ```bash
@@ -104,7 +108,7 @@ You can configure API keys via environment variables or inside the GUI:
 
 ## Running Unit Tests
 
-Run the test suite to verify core components, IP filtering, and SQLite caching logic:
+Run the test suite to verify core components, IP filtering, BPF sanitization, and SQLite caching logic:
 ```bash
 python -m unittest discover tests
 ```
@@ -112,4 +116,4 @@ python -m unittest discover tests
 ---
 
 ## Design & Aesthetics
-SentinelShark features a slate/cyber dark mode (`#0f172a`, `#1e293b`) with neon cyan accents (`#06b6d4`), emerald safe indicators (`#10b981`), and crimson threat highlights (`#ef4444`).
+SentinelShark features a sleek cyber dark mode (`#0f172a`, `#1e293b`) with neon cyan accents (`#06b6d4`), emerald safe indicators (`#10b981`), amber risk warnings (`#f59e0b`), and crimson threat highlights (`#ef4444`).
