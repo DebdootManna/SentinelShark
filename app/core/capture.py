@@ -27,6 +27,39 @@ def get_available_interfaces() -> List[str]:
     return list(dict.fromkeys(interfaces))  # Unique list preserving order
 
 
+def sanitize_bpf_filter(raw_bpf: str) -> str:
+    """
+    Sanitizes user input into valid BPF syntax for pcap/tshark.
+    Translates display filter shortcuts (http, dns, https, ssh, raw IP) to valid BPF expressions.
+    """
+    if not raw_bpf:
+        return ""
+    clean = raw_bpf.strip().lower()
+    
+    # Common user shortcuts -> BPF syntax translations
+    if clean in ("http", "web"):
+        return "tcp port 80 or tcp port 8080"
+    if clean in ("https", "ssl", "tls"):
+        return "tcp port 443"
+    if clean == "dns":
+        return "port 53"
+    if clean == "ssh":
+        return "tcp port 22"
+    if clean == "icmp":
+        return "icmp"
+    if clean == "tcp":
+        return "tcp"
+    if clean == "udp":
+        return "udp"
+    
+    # Check if user typed a raw IP address e.g. "8.8.8.8" or "192.168.1.1"
+    parts = clean.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        return f"host {raw_bpf.strip()}"
+    
+    return raw_bpf.strip()
+
+
 class LiveCaptureThread(QThread):
     """
     Dedicated QThread for PyShark LiveCapture / FileCapture.
@@ -79,10 +112,18 @@ class LiveCaptureThread(QThread):
                 kwargs = {"tshark_path": tshark_exec, "include_raw": True, "use_json": True}
                 if target_iface:
                     kwargs["interface"] = target_iface
-                if self.bpf_filter:
-                    kwargs["bpf_filter"] = self.bpf_filter
 
-                self._capture = pyshark.LiveCapture(**kwargs)
+                sanitized_bpf = sanitize_bpf_filter(self.bpf_filter)
+                if sanitized_bpf:
+                    kwargs["bpf_filter"] = sanitized_bpf
+
+                try:
+                    self._capture = pyshark.LiveCapture(**kwargs)
+                except Exception as bpf_err:
+                    print(f"[CaptureThread] BPF error for '{sanitized_bpf}': {bpf_err}. Retrying without BPF filter...")
+                    self.status_changed.emit("BPF syntax error. Running capture without BPF (table filter active).")
+                    kwargs.pop("bpf_filter", None)
+                    self._capture = pyshark.LiveCapture(**kwargs)
 
             self.status_changed.emit("Capture active. Sniffing packets...")
 
@@ -122,6 +163,9 @@ class LiveCaptureThread(QThread):
             ("45.33.32.156", "Insecure Scanner", "SSH"), # Suspicious public IP
             ("93.184.216.34", "Example.com", "HTTP"),
             ("198.51.100.45", "External Host", "TCP"),
+            ("8.8.4.4", "Google DNS Secondary", "UDP"),
+            ("1.0.0.1", "Cloudflare DNS Secondary", "UDP"),
+            ("208.67.222.222", "OpenDNS", "UDP"),
         ]
 
         internal_ips = ["192.168.1.105", "192.168.1.1", "10.0.0.15", "172.16.0.4"]
@@ -133,7 +177,7 @@ class LiveCaptureThread(QThread):
             src_ip = random.choice(internal_ips)
             
             src_port = random.randint(1024, 65535)
-            dst_port = 80 if proto_hint == "HTTP" else (443 if proto_hint == "HTTPS" else (53 if proto_hint == "DNS" else 22))
+            dst_port = 80 if proto_hint == "HTTP" else (443 if proto_hint == "HTTPS" else (53 if proto_hint in ("DNS", "UDP") else 22))
 
             time_str = time.strftime("%H:%M:%S") + f".{random.randint(100, 999):03d}"
             length = random.randint(54, 1514)
@@ -144,10 +188,18 @@ class LiveCaptureThread(QThread):
                 payload_str = f"{method_line} HTTP/1.1\r\nHost: {dst_desc}\r\nUser-Agent: SentinelShark/1.0\r\nAccept: */*\r\n\r\n"
                 info = f"HTTP {method_line}"
                 protocol = "HTTP"
+            elif proto_hint == "HTTPS":
+                payload_str = f"\x16\x03\x01\x02\x00 Client Hello - SentinelShark TLS Session"
+                info = f"HTTPS TLS/SSL Client Hello ({src_port} -> 443)"
+                protocol = "HTTPS"
             elif proto_hint == "DNS":
                 payload_str = f"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01"
                 info = f"Standard query 0x{random.randint(1000,9999):04x} A example.com"
                 protocol = "DNS"
+            elif proto_hint == "UDP":
+                payload_str = f"SentinelShark UDP Packet Payload #{self._packet_count} - Datagram Stream"
+                info = f"UDP {src_port} -> {dst_port} Len={length}"
+                protocol = "UDP"
             else:
                 payload_str = f"SentinelShark Packet Payload #{self._packet_count} - Protocol {proto_hint} Data Stream"
                 info = f"{proto_hint} {src_port} -> {dst_port} [SYN, ACK] Seq=1 Ack=1 Win=64240 Len={length-54}"

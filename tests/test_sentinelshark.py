@@ -208,5 +208,33 @@ class TestSentinelSharkCore(unittest.TestCase):
                 os.remove(db_path)
 
 
+    def test_sanitize_bpf_filter(self):
+        """Test BPF filter translation and IP host wrapper."""
+        from app.core.capture import sanitize_bpf_filter
+        self.assertEqual(sanitize_bpf_filter("http"), "tcp port 80 or tcp port 8080")
+        self.assertEqual(sanitize_bpf_filter("dns"), "port 53")
+        self.assertEqual(sanitize_bpf_filter("https"), "tcp port 443")
+        self.assertEqual(sanitize_bpf_filter("8.8.8.8"), "host 8.8.8.8")
+        self.assertEqual(sanitize_bpf_filter("tcp port 80"), "tcp port 80")
+
+    def test_packet_table_filtering(self):
+        """Test PacketTable search/filter matching logic."""
+        from PyQt6.QtWidgets import QApplication
+        from app.ui.components.packettable import PacketTable
+
+        app = QApplication.instance() or QApplication([])
+        table = PacketTable()
+        table.add_packet({"no": 1, "src": "192.168.1.5", "dst": "8.8.8.8", "protocol": "DNS", "info": "Standard query A example.com"})
+        table.add_packet({"no": 2, "src": "192.168.1.5", "dst": "142.250.190.46", "protocol": "HTTP", "info": "GET /index.html"})
+
+        table.set_filter_query("dns")
+        self.assertFalse(table.isRowHidden(0))
+        self.assertTrue(table.isRowHidden(1))
+
+        table.set_filter_query("142.250.190.46")
+        self.assertTrue(table.isRowHidden(0))
+        self.assertFalse(table.isRowHidden(1))
+
+
 if __name__ == "__main__":
     unittest.main()

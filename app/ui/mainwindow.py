@@ -408,6 +408,20 @@ class MainWindow(QMainWindow):
         self.packet_table.packet_selected.connect(self.on_packet_selected)
         queue_manager.signals.threat_resolved.connect(self.on_threat_resolved)
         queue_manager.signals.queue_status.connect(self.stats_panel.update_queue_status)
+        self.bpf_edit.textChanged.connect(self.on_bpf_text_changed)
+        self.bpf_edit.returnPressed.connect(self.on_bpf_return_pressed)
+
+    def on_bpf_text_changed(self, text: str):
+        """Filter packet table rows in real-time as user types in the filter bar."""
+        self.packet_table.set_filter_query(text)
+
+    def on_bpf_return_pressed(self):
+        """Restart capture with new BPF filter when Enter is pressed."""
+        if self.capture_thread and self.capture_thread.isRunning():
+            self.stop_capture()
+            QTimer.singleShot(250, self.start_capture)
+        else:
+            self.start_capture()
 
     @pyqtSlot(dict)
     def on_packet_captured(self, pkt: dict):

@@ -73,30 +73,45 @@ class PacketDissector:
             src_ip = packet.ipv6.src
             dst_ip = packet.ipv6.dst
 
-        # Check Transport Layer
+        # Extract Transport Layer Ports
         if hasattr(packet, "tcp"):
+            src_port = getattr(packet.tcp, "srcport", "")
+            dst_port = getattr(packet.tcp, "dstport", "")
+        elif hasattr(packet, "udp"):
+            src_port = getattr(packet.udp, "srcport", "")
+            dst_port = getattr(packet.udp, "dstport", "")
+
+        highest = getattr(packet, "highest_layer", "").upper()
+
+        # Check Application Layer Protocols first
+        if hasattr(packet, "dns") or highest == "DNS":
+            protocol = "DNS"
+            qry_name = getattr(packet.dns, "qry_name", "") if hasattr(packet, "dns") else ""
+            info = f"Standard query {getattr(packet.dns, 'id', '')} A {qry_name}" if qry_name else "DNS Packet"
+        elif hasattr(packet, "http") or highest == "HTTP":
+            protocol = "HTTP"
+            method = getattr(packet.http, "request_method", "") if hasattr(packet, "http") else ""
+            uri = getattr(packet.http, "request_uri", "") if hasattr(packet, "http") else ""
+            info = f"HTTP {method} {uri}" if method else "HTTP Response / Data"
+        elif hasattr(packet, "tls") or hasattr(packet, "ssl") or highest in ("TLS", "SSL"):
+            protocol = "HTTPS"
+            info = f"TLS/HTTPS Encrypted Session ({src_port} -> {dst_port})"
+        elif hasattr(packet, "ssh") or highest == "SSH":
+            protocol = "SSH"
+            info = f"SSH Encrypted Session ({src_port} -> {dst_port})"
+        elif hasattr(packet, "icmp") or highest == "ICMP":
+            protocol = "ICMP"
+            info = f"ICMP Type={getattr(packet.icmp, 'type', '')} Code={getattr(packet.icmp, 'code', '')}" if hasattr(packet, "icmp") else "ICMP Packet"
+        elif hasattr(packet, "tcp"):
             protocol = "TCP"
-            src_port = packet.tcp.srcport
-            dst_port = packet.tcp.dstport
             flags = getattr(packet.tcp, "flags", "")
             info = f"TCP {src_port} -> {dst_port} [Flags: {flags}]"
         elif hasattr(packet, "udp"):
             protocol = "UDP"
-            src_port = packet.udp.srcport
-            dst_port = packet.udp.dstport
             info = f"UDP {src_port} -> {dst_port} Len={getattr(packet.udp, 'length', length)}"
-        elif hasattr(packet, "icmp"):
-            protocol = "ICMP"
-            info = f"ICMP Type={getattr(packet.icmp, 'type', '')} Code={getattr(packet.icmp, 'code', '')}"
-        elif hasattr(packet, "dns"):
-            protocol = "DNS"
-            qry_name = getattr(packet.dns, "qry_name", "")
-            info = f"DNS Query: {qry_name}" if qry_name else "DNS Packet"
-        elif hasattr(packet, "http"):
-            protocol = "HTTP"
-            method = getattr(packet.http, "request_method", "")
-            uri = getattr(packet.http, "request_uri", "")
-            info = f"HTTP {method} {uri}" if method else "HTTP Response"
+        elif highest:
+            protocol = highest
+            info = f"{protocol} Protocol Packet"
 
         # Raw Bytes
         raw_bytes = b""

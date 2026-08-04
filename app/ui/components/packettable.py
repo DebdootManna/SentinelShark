@@ -22,6 +22,7 @@ class PacketTable(QTableWidget):
         super().__init__(parent)
         self.packets: List[Dict[str, Any]] = []
         self.ip_row_map: Dict[str, List[int]] = {}  # Maps IP -> list of row indices
+        self.current_filter: str = ""
         self.init_ui()
 
     def init_ui(self):
@@ -55,6 +56,53 @@ class PacketTable(QTableWidget):
         self.setColumnWidth(7, 120)
 
         self.itemSelectionChanged.connect(self._on_selection_changed)
+
+    def set_filter_query(self, query: str):
+        """Filter visible packet rows in table based on query matching src, dst, protocol, or info."""
+        self.current_filter = query.strip().lower()
+        for row in range(self.rowCount()):
+            self._update_row_visibility(row)
+
+    def _matches_filter(self, pkt: Dict[str, Any]) -> bool:
+        if not self.current_filter:
+            return True
+        q = self.current_filter
+        tokens = q.split()
+        
+        search_target = f"{pkt.get('src', '')} {pkt.get('dst', '')} {pkt.get('protocol', '')} {pkt.get('info', '')} {pkt.get('src_port', '')} {pkt.get('dst_port', '')}".lower()
+        
+        # Support "ip src X" or "ip dst X"
+        if "ip" in tokens and "src" in tokens:
+            try:
+                idx = tokens.index("src") + 1
+                if idx < len(tokens):
+                    return pkt.get("src", "").lower() == tokens[idx]
+            except ValueError:
+                pass
+        if "ip" in tokens and "dst" in tokens:
+            try:
+                idx = tokens.index("dst") + 1
+                if idx < len(tokens):
+                    return pkt.get("dst", "").lower() == tokens[idx]
+            except ValueError:
+                pass
+        if "port" in tokens:
+            try:
+                idx = tokens.index("port") + 1
+                if idx < len(tokens):
+                    pval = tokens[idx]
+                    return str(pkt.get("src_port", "")) == pval or str(pkt.get("dst_port", "")) == pval
+            except ValueError:
+                pass
+
+        # Substring/Token match
+        return all(tok in search_target for tok in tokens)
+
+    def _update_row_visibility(self, row: int):
+        if row < len(self.packets):
+            pkt = self.packets[row]
+            visible = self._matches_filter(pkt)
+            self.setRowHidden(row, not visible)
 
     def add_packet(self, pkt: Dict[str, Any]):
         """Append packet to table with styled items."""
@@ -94,8 +142,11 @@ class PacketTable(QTableWidget):
         # Apply initial styling
         self._apply_row_style(row, pkt.get("threat_data"))
 
-        # Auto-scroll if enabled
-        if config.auto_scroll:
+        # Apply current filter visibility
+        self._update_row_visibility(row)
+
+        # Auto-scroll if enabled and row is visible
+        if config.auto_scroll and not self.isRowHidden(row):
             self.scrollToBottom()
 
     def update_threat_intel(self, ip: str, threat_data: Dict[str, Any]):
