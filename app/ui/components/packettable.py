@@ -181,8 +181,8 @@ class PacketTable(QTableWidget):
                 self._apply_row_style(row, threat_data)
 
     def _apply_row_style(self, row: int, threat_data: Optional[Dict[str, Any]]):
-        """Apply dynamic color-coding based on threat classification."""
-        if not threat_data:
+        """Apply dynamic color-coding based on threat classification for Public IPs exclusively."""
+        if not threat_data or threat_data.get("is_public") is False:
             return
 
         abuse_score = threat_data.get("abuse_score", 0)
@@ -194,16 +194,16 @@ class PacketTable(QTableWidget):
 
         if vt_malicious > 0 or abuse_score > 30:
             # Critical Threat: Red / Dark Crimson
-            bg_color = QColor(127, 29, 29, 200)   # #7f1d1d
+            bg_color = QColor(127, 29, 29, 210)   # #7f1d1d
             text_color = QColor(254, 202, 202)   # #fecaca
             font_bold = True
         elif abuse_score > 0 or threat_data.get("vt_suspicious", 0) > 0:
             # Low-Medium Risk: Amber / Orange
-            bg_color = QColor(120, 53, 15, 180)   # #78350f
+            bg_color = QColor(120, 53, 15, 190)   # #78350f
             text_color = QColor(254, 243, 199)   # #fef3c7
         elif threat_data.get("is_public") is True:
             # Safe Public IP: Dark Green
-            bg_color = QColor(6, 78, 59, 160)     # #064e3b
+            bg_color = QColor(6, 78, 59, 180)     # #064e3b
             text_color = QColor(209, 250, 229)   # #d1fae5
 
         if bg_color:
