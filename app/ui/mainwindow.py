@@ -1,11 +1,14 @@
 import os
+import time
 from typing import Optional
+import psutil
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
-from PyQt6.QtGui import QIcon, QFont, QAction
+from PyQt6.QtGui import QIcon, QFont, QAction, QColor
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QToolBar,
     QComboBox, QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox,
-    QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QCheckBox
+    QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QCheckBox,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 )
 
 from app.config import config, CONFIG_PATH
@@ -16,55 +19,203 @@ from app.ui.components.packettable import PacketTable
 from app.ui.components.packetdetail import PacketDetailView
 from app.ui.components.hexview import HexView
 from app.ui.components.statspanel import StatsPanel
+from app.ui.components.sparkline import SparklineWidget
+
+
+def get_friendly_iface_name(iface: str) -> str:
+    """Return friendly human-readable label for network interface."""
+    name_map = {
+        "en0": "Wi-Fi / Primary Ethernet (en0)",
+        "lo0": "Local Loopback (lo0)",
+        "lo": "Local Loopback (lo)",
+        "eth0": "Ethernet (eth0)",
+        "wlan0": "Wireless Network (wlan0)",
+        "awdl0": "Apple Direct Link (awdl0)",
+        "llw0": "Low Latency WLAN (llw0)",
+        "bridge0": "Network Bridge (bridge0)",
+    }
+    if iface in name_map:
+        return name_map[iface]
+    if iface.startswith("utun"):
+        return f"VPN Tunnel ({iface})"
+    if iface.startswith("anpi"):
+        return f"Apple Network Interface ({iface})"
+    return f"Interface ({iface})"
 
 
 class InterfaceSelectionDialog(QDialog):
-    """Startup modal for choosing network interface for packet capture."""
+    """
+    Wireshark-style modal dialog displaying real-time packet activity sparklines
+    for all host network interfaces.
+    """
 
     def __init__(self, interfaces: list, current_iface: str = "en0", parent=None):
         super().__init__(parent)
         self.setWindowTitle("SentinelShark - Select Network Interface")
-        self.setMinimumWidth(440)
+        self.setMinimumSize(680, 460)
         self.selected_interface = current_iface
+        self.interfaces = interfaces
+        self.last_counters = {}
+        self.last_time = time.time()
+        self.sparklines = {}
+        self.rate_labels = {}
+
         self.init_ui(interfaces, current_iface)
+
+        # 300ms Timer for real-time traffic sampling
+        self.sample_timer = QTimer(self)
+        self.sample_timer.timeout.connect(self.sample_traffic)
+        self.sample_timer.start(300)
 
     def init_ui(self, interfaces: list, current_iface: str):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
         title_lbl = QLabel("<b>Select Network Interface for Packet Capture</b>")
-        title_lbl.setStyleSheet("font-size: 14px; color: #38bdf8;")
+        title_lbl.setStyleSheet("font-size: 15px; color: #38bdf8;")
         layout.addWidget(title_lbl)
 
         desc_lbl = QLabel(
-            "Please choose which network interface SentinelShark should examine and intercept live packets from:"
+            "Live traffic activity curves below show real-time packet transmission across your network devices (Wireshark-style preview):"
         )
         desc_lbl.setWordWrap(True)
-        desc_lbl.setStyleSheet("color: #94a3b8;")
+        desc_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
         layout.addWidget(desc_lbl)
 
-        form = QFormLayout()
-        self.iface_combo = QComboBox()
-        self.iface_combo.addItems(interfaces)
+        # Table Widget
+        self.table = QTableWidget(len(interfaces), 4)
+        self.table.setHorizontalHeaderLabels(["Interface", "IP Address", "Live Traffic Sparkline", "Rate"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.table.setColumnWidth(0, 220)
+        self.table.setColumnWidth(1, 130)
+        self.table.setColumnWidth(3, 100)
 
-        idx = self.iface_combo.findText(current_iface)
-        if idx >= 0:
-            self.iface_combo.setCurrentIndex(idx)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.itemDoubleClicked.connect(self.on_row_double_clicked)
 
-        form.addRow("Interface:", self.iface_combo)
-        layout.addLayout(form)
+        # Fetch IP addresses
+        if_addrs = {}
+        try:
+            addrs = psutil.net_if_addrs()
+            for if_name, addr_list in addrs.items():
+                for addr in addr_list:
+                    if str(addr.family).endswith("AF_INET") or addr.family == 2:
+                        if_addrs[if_name] = addr.address
+                        break
+        except Exception:
+            pass
 
+        selected_row = 0
+        for row, iface in enumerate(interfaces):
+            # 1. Interface Name
+            friendly_name = get_friendly_iface_name(iface)
+            item_name = QTableWidgetItem(friendly_name)
+            item_name.setData(Qt.ItemDataRole.UserRole, iface)
+
+            # Highlight default selected interface
+            if iface == current_iface:
+                selected_row = row
+
+            self.table.setItem(row, 0, item_name)
+
+            # 2. IP Address
+            ip_str = if_addrs.get(iface, "N/A")
+            item_ip = QTableWidgetItem(ip_str)
+            item_ip.setForeground(QColor("#94a3b8"))
+            self.table.setItem(row, 1, item_ip)
+
+            # 3. Live Sparkline Widget
+            sparkline = SparklineWidget()
+            self.sparklines[iface] = sparkline
+            self.table.setCellWidget(row, 2, sparkline)
+
+            # 4. Rate Label
+            lbl_rate = QLabel("0.0 KB/s")
+            lbl_rate.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_rate.setStyleSheet("color: #64748b; font-family: monospace; font-size: 11px;")
+            self.rate_labels[iface] = lbl_rate
+            self.table.setCellWidget(row, 3, lbl_rate)
+
+            self.table.setRowHeight(row, 38)
+
+        self.table.selectRow(selected_row)
+        layout.addWidget(self.table)
+
+        # Buttons
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Select Interface")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Start Capture on Interface")
         buttons.accepted.connect(self.save_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def sample_traffic(self):
+        """Periodic timer task sampling network throughput per interface."""
+        now = time.time()
+        dt = max(now - self.last_time, 0.1)
+        self.last_time = now
+
+        try:
+            counters = psutil.net_io_counters(pernic=True)
+        except Exception:
+            return
+
+        for iface in self.interfaces:
+            cur = counters.get(iface)
+            prev = self.last_counters.get(iface)
+
+            rate_kb = 0.0
+            if cur and prev:
+                delta_bytes = (cur.bytes_sent + cur.bytes_recv) - (prev.bytes_sent + prev.bytes_recv)
+                rate_kb = max(0.0, (delta_bytes / dt) / 1024.0)
+
+            if cur:
+                self.last_counters[iface] = cur
+
+            # Update sparkline waveform
+            if iface in self.sparklines:
+                self.sparklines[iface].add_value(rate_kb)
+
+            # Update text label
+            if iface in self.rate_labels:
+                if rate_kb > 1024:
+                    rate_str = f"{rate_kb / 1024.0:.1f} MB/s"
+                elif rate_kb > 0.05:
+                    rate_str = f"{rate_kb:.1f} KB/s"
+                else:
+                    rate_str = "0.0 KB/s"
+
+                lbl = self.rate_labels[iface]
+                lbl.setText(rate_str)
+                if rate_kb > 0.05:
+                    lbl.setStyleSheet("color: #34d399; font-weight: bold; font-family: monospace; font-size: 11px;")
+                else:
+                    lbl.setStyleSheet("color: #64748b; font-family: monospace; font-size: 11px;")
+
+    def on_row_double_clicked(self, item: QTableWidgetItem):
+        self.save_and_accept()
+
     def save_and_accept(self):
-        self.selected_interface = self.iface_combo.currentText()
+        row = self.table.currentRow()
+        if row >= 0:
+            item = self.table.item(row, 0)
+            if item:
+                iface = item.data(Qt.ItemDataRole.UserRole)
+                if iface:
+                    self.selected_interface = iface
+        self.sample_timer.stop()
         self.accept()
+
+    def reject(self):
+        self.sample_timer.stop()
+        super().reject()
 
 
 class APISettingsDialog(QDialog):

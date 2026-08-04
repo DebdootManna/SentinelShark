@@ -133,6 +133,19 @@ class TestSentinelSharkCore(unittest.TestCase):
             self.assertEqual(cfg2.virustotal_api_key, "test_vt_key_456")
             self.assertEqual(cfg2.default_interface, "wlan0")
 
+    def test_sparkline_widget(self):
+        """Test SparklineWidget history buffer management."""
+        from PyQt6.QtWidgets import QApplication
+        from app.ui.components.sparkline import SparklineWidget
+
+        app = QApplication.instance() or QApplication([])
+        sparkline = SparklineWidget(max_points=5)
+        for i in range(10):
+            sparkline.add_value(float(i))
+
+        self.assertEqual(len(sparkline.history), 5)
+        self.assertEqual(list(sparkline.history), [5.0, 6.0, 7.0, 8.0, 9.0])
+
 
 if __name__ == "__main__":
     unittest.main()
