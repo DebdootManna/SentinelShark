@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from app.config import config, CONFIG_PATH
 from app.core.capture import LiveCaptureThread, get_available_interfaces
 from app.services.queuemanager import queue_manager
+from app.core.cache import cache
 from app.ui.styles import DARK_THEME_QSS
 from app.ui.components.packettable import PacketTable
 from app.ui.components.packetdetail import PacketDetailView
@@ -195,7 +196,7 @@ class InterfaceSelectionDialog(QDialog):
 
 
 class APISettingsDialog(QDialog):
-    """Configuration modal for entering AbuseIPDB & VirusTotal API keys."""
+    """Configuration modal for entering AbuseIPDB, VirusTotal & IPinfo API keys."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -217,6 +218,11 @@ class APISettingsDialog(QDialog):
         self.vt_edit.setPlaceholderText("Enter VirusTotal v3 API Key")
         self.vt_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
         form.addRow("VirusTotal API Key:", self.vt_edit)
+
+        self.ipinfo_edit = QLineEdit(config.ipinfo_api_key)
+        self.ipinfo_edit.setPlaceholderText("Enter IPinfo API Key / Access Token")
+        self.ipinfo_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+        form.addRow("IPinfo API Key:", self.ipinfo_edit)
 
         self.ttl_spin = QLineEdit(str(config.cache_ttl_hours))
         form.addRow("Cache TTL (Hours):", self.ttl_spin)
@@ -241,6 +247,7 @@ class APISettingsDialog(QDialog):
     def save_and_accept(self):
         config.abuseipdb_api_key = self.abuse_edit.text().strip()
         config.virustotal_api_key = self.vt_edit.text().strip()
+        config.ipinfo_api_key = self.ipinfo_edit.text().strip()
         try:
             config.cache_ttl_hours = int(self.ttl_spin.text().strip())
             config.max_requests_per_minute = int(self.rate_spin.text().strip())
@@ -468,11 +475,12 @@ class MainWindow(QMainWindow):
         self.update_capture_status("Capture stopped.")
 
     def clear_all(self):
-        """Reset table, stats, inspector, and hex dump."""
+        """Reset table, stats, inspector, hex dump, and queue status."""
         self.packet_table.clear_table()
         self.stats_panel.reset_stats()
         self.packet_detail.display_packet(None)
         self.hex_view.display_packet(None)
+        queue_manager.clear()
 
     def toggle_mock_mode(self, enabled: bool):
         config.mock_mode = enabled
@@ -492,9 +500,11 @@ class MainWindow(QMainWindow):
     def open_api_settings(self):
         dlg = APISettingsDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            cache.clear_memory()
+            queue_manager.clear()
             self.mock_btn.setChecked(config.mock_mode)
             self.mock_btn.setText("Mock Mode (ON)" if config.mock_mode else "Mock Mode")
-            self.statusbar.showMessage("Configuration saved successfully.", 3000)
+            self.statusbar.showMessage("Configuration saved successfully. Cache flushed for new API keys.", 4000)
 
     def update_capture_status(self, status_msg: str):
         self.capture_lbl.setText(f"  Capture Status: {status_msg}  ")
@@ -523,8 +533,8 @@ class MainWindow(QMainWindow):
             "<h3>SentinelShark NIDS v1.0</h3>"
             "<p>A modern desktop Network Intrusion Detection & Analysis System (NIDS) "
             "written in Python with PyQt6, PyShark, and httpx.</p>"
-            "<p>Enriches live network traffic with real-time threat intelligence "
-            "from <b>VirusTotal</b> and <b>AbuseIPDB</b>.</p>"
+            "<p>Enriches live network traffic with real-time threat intelligence and geolocation data "
+            "from <b>VirusTotal</b>, <b>AbuseIPDB</b>, and <b>IPinfo</b>.</p>"
         )
 
     def closeEvent(self, event):

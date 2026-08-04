@@ -107,3 +107,59 @@ class PacketDetailView(QWidget):
 
         for child in children:
             QTreeWidgetItem(root_item, [child])
+
+        # IPinfo Detailed Integration Node
+        ipinfo_details = threat.get("ipinfo_details")
+        if ipinfo_details and isinstance(ipinfo_details, dict) and len(ipinfo_details) > 0:
+            ipinfo_node = QTreeWidgetItem(root_item, ["IPinfo Details & Geolocation"])
+            font_ipinfo = ipinfo_node.font(0)
+            font_ipinfo.setBold(True)
+            ipinfo_node.setFont(0, font_ipinfo)
+            ipinfo_node.setForeground(0, QBrush(QColor(56, 189, 248)))  # Sky blue
+
+            def format_dict_to_tree(parent_node: QTreeWidgetItem, d: dict):
+                for k, v in d.items():
+                    if isinstance(v, dict):
+                        sub_node = QTreeWidgetItem(parent_node, [f"{k}:"])
+                        format_dict_to_tree(sub_node, v)
+                    elif isinstance(v, list):
+                        sub_node = QTreeWidgetItem(parent_node, [f"{k}:"])
+                        for item in v:
+                            if isinstance(item, dict):
+                                item_node = QTreeWidgetItem(sub_node, ["item:"])
+                                format_dict_to_tree(item_node, item)
+                            else:
+                                QTreeWidgetItem(sub_node, [str(item)])
+                    else:
+                        QTreeWidgetItem(parent_node, [f"{k}: {v}"])
+
+            format_dict_to_tree(ipinfo_node, ipinfo_details)
+        elif any(bool(threat.get(k)) for k in ("ipinfo_org", "ipinfo_city", "ipinfo_hostname", "ipinfo_loc", "ipinfo_country", "ipinfo_region", "ipinfo_timezone")):
+            ipinfo_node = QTreeWidgetItem(root_item, ["IPinfo Details & Geolocation"])
+            font_ipinfo = ipinfo_node.font(0)
+            font_ipinfo.setBold(True)
+            ipinfo_node.setFont(0, font_ipinfo)
+            ipinfo_node.setForeground(0, QBrush(QColor(56, 189, 248)))
+
+            if threat.get("ipinfo_org"):
+                QTreeWidgetItem(ipinfo_node, [f"org: {threat.get('ipinfo_org')}"])
+            if threat.get("ipinfo_hostname"):
+                QTreeWidgetItem(ipinfo_node, [f"hostname: {threat.get('ipinfo_hostname')}"])
+            if threat.get("ipinfo_city"):
+                QTreeWidgetItem(ipinfo_node, [f"city: {threat.get('ipinfo_city')}"])
+            if threat.get("ipinfo_region"):
+                QTreeWidgetItem(ipinfo_node, [f"region: {threat.get('ipinfo_region')}"])
+            if threat.get("ipinfo_country"):
+                QTreeWidgetItem(ipinfo_node, [f"country: {threat.get('ipinfo_country')}"])
+            if threat.get("ipinfo_loc"):
+                QTreeWidgetItem(ipinfo_node, [f"loc: {threat.get('ipinfo_loc')}"])
+            if threat.get("ipinfo_timezone"):
+                QTreeWidgetItem(ipinfo_node, [f"timezone: {threat.get('ipinfo_timezone')}"])
+            if threat.get("ipinfo_postal"):
+                QTreeWidgetItem(ipinfo_node, [f"postal: {threat.get('ipinfo_postal')}"])
+            if threat.get("ipinfo_anycast"):
+                QTreeWidgetItem(ipinfo_node, [f"anycast: {threat.get('ipinfo_anycast')}"])
+        else:
+            status_text = "No API Key Configured" if not config.ipinfo_api_key else "No Data / Pending Lookup"
+            ipinfo_node = QTreeWidgetItem(root_item, [f"IPinfo Details: ({status_text})"])
+            ipinfo_node.setForeground(0, QBrush(QColor(148, 163, 184)))

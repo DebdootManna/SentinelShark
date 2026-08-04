@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import time
 from typing import Dict, Any, Optional
@@ -24,7 +25,7 @@ class ThreatCache:
         return conn
 
     def _init_db(self):
-        """Create threat cache table if it does not exist."""
+        """Create threat cache table if it does not exist and ensure migrations."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -37,16 +38,45 @@ class ThreatCache:
                     country TEXT DEFAULT '',
                     reports_count INTEGER DEFAULT 0,
                     domain TEXT DEFAULT '',
+                    ipinfo_data TEXT DEFAULT '{}',
                     updated_at INTEGER NOT NULL
                 )
             """)
+            cursor.execute("PRAGMA table_info(ip_threat_cache)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            if "ipinfo_data" not in columns:
+                cursor.execute("ALTER TABLE ip_threat_cache ADD COLUMN ipinfo_data TEXT DEFAULT '{}'")
+            conn.commit()
+
+    def _is_complete(self, data: Dict[str, Any]) -> bool:
+        """Check if cached entry contains data for all currently configured API services."""
+        if config.ipinfo_api_key:
+            ipinfo = data.get("ipinfo_details")
+            if not ipinfo or not isinstance(ipinfo, dict) or len(ipinfo) == 0:
+                return False
+        return True
+
+    def clear_memory(self):
+        """Flush in-memory TTL cache to force re-evaluation of cached records."""
+        self.mem_cache.clear()
+
+    def clear_all(self):
+        """Purge all records from SQLite and in-memory cache."""
+        self.mem_cache.clear()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM ip_threat_cache")
             conn.commit()
 
     def get(self, ip: str) -> Optional[Dict[str, Any]]:
-        """Retrieve threat data for an IP if present and unexpired."""
+        """Retrieve threat data for an IP if present, complete, and unexpired."""
         # Check in-memory cache first
         if ip in self.mem_cache:
-            return self.mem_cache[ip]
+            data = self.mem_cache[ip]
+            if self._is_complete(data):
+                return data
+            else:
+                del self.mem_cache[ip]
 
         now = int(time.time())
         with self._get_connection() as conn:
@@ -60,6 +90,12 @@ class ThreatCache:
                 updated_at = row_dict.get("updated_at", 0)
                 # Check TTL
                 if (now - updated_at) < self.ttl_seconds:
+                    ipinfo_raw = row_dict.get("ipinfo_data") or "{}"
+                    try:
+                        ipinfo_details = json.loads(ipinfo_raw) if isinstance(ipinfo_raw, str) else {}
+                    except Exception:
+                        ipinfo_details = {}
+
                     data = {
                         "ip": row_dict["ip"],
                         "abuse_score": row_dict["abuse_score"],
@@ -69,11 +105,26 @@ class ThreatCache:
                         "country": row_dict["country"],
                         "reports_count": row_dict["reports_count"],
                         "domain": row_dict["domain"],
+                        "ipinfo_details": ipinfo_details,
+                        "ipinfo_org": ipinfo_details.get("org") or "",
+                        "ipinfo_hostname": ipinfo_details.get("hostname") or "",
+                        "ipinfo_city": ipinfo_details.get("city") or "",
+                        "ipinfo_region": ipinfo_details.get("region") or "",
+                        "ipinfo_country": ipinfo_details.get("country") or "",
+                        "ipinfo_loc": ipinfo_details.get("loc") or "",
+                        "ipinfo_timezone": ipinfo_details.get("timezone") or "",
+                        "ipinfo_postal": ipinfo_details.get("postal") or "",
+                        "ipinfo_anycast": ipinfo_details.get("anycast", False),
                         "cached": True,
                         "updated_at": updated_at
                     }
-                    self.mem_cache[ip] = data
-                    return data
+                    if self._is_complete(data):
+                        self.mem_cache[ip] = data
+                        return data
+                    else:
+                        # Incomplete entry for current config -> purge from SQLite
+                        cursor.execute("DELETE FROM ip_threat_cache WHERE ip = ?", (ip,))
+                        conn.commit()
                 else:
                     # Expired entry
                     cursor.execute("DELETE FROM ip_threat_cache WHERE ip = ?", (ip,))
@@ -90,13 +141,15 @@ class ThreatCache:
         country = threat_data.get("country", "")
         reports_count = threat_data.get("reports_count", 0)
         domain = threat_data.get("domain", "")
+        ipinfo_details = threat_data.get("ipinfo_details", {})
+        ipinfo_json = json.dumps(ipinfo_details) if isinstance(ipinfo_details, dict) else "{}"
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO ip_threat_cache 
-                (ip, abuse_score, vt_malicious, vt_suspicious, vt_harmless, country, reports_count, domain, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (ip, abuse_score, vt_malicious, vt_suspicious, vt_harmless, country, reports_count, domain, ipinfo_data, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ip) DO UPDATE SET
                     abuse_score = excluded.abuse_score,
                     vt_malicious = excluded.vt_malicious,
@@ -105,11 +158,24 @@ class ThreatCache:
                     country = excluded.country,
                     reports_count = excluded.reports_count,
                     domain = excluded.domain,
+                    ipinfo_data = excluded.ipinfo_data,
                     updated_at = excluded.updated_at
-            """, (ip, abuse_score, vt_malicious, vt_suspicious, vt_harmless, country, reports_count, domain, now))
+            """, (ip, abuse_score, vt_malicious, vt_suspicious, vt_harmless, country, reports_count, domain, ipinfo_json, now))
             conn.commit()
 
         # Update in-memory cache
+        if "ipinfo_details" in threat_data and isinstance(threat_data["ipinfo_details"], dict):
+            details = threat_data["ipinfo_details"]
+            threat_data.setdefault("ipinfo_org", details.get("org") or "")
+            threat_data.setdefault("ipinfo_hostname", details.get("hostname") or "")
+            threat_data.setdefault("ipinfo_city", details.get("city") or "")
+            threat_data.setdefault("ipinfo_region", details.get("region") or "")
+            threat_data.setdefault("ipinfo_country", details.get("country") or "")
+            threat_data.setdefault("ipinfo_loc", details.get("loc") or "")
+            threat_data.setdefault("ipinfo_timezone", details.get("timezone") or "")
+            threat_data.setdefault("ipinfo_postal", details.get("postal") or "")
+            threat_data.setdefault("ipinfo_anycast", details.get("anycast", False))
+
         threat_data["ip"] = ip
         threat_data["cached"] = True
         threat_data["updated_at"] = now

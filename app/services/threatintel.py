@@ -95,10 +95,48 @@ class ThreatIntelClient:
             print(f"[ThreatIntel] VirusTotal error for {ip}: {e}")
         return {}
 
+    async def fetch_ipinfo(self, client: httpx.AsyncClient, ip: str) -> Dict[str, Any]:
+        """Query IPinfo API for an IP address."""
+        key = config.ipinfo_api_key
+        url = f"https://ipinfo.io/{ip}/json"
+        headers = {"Accept": "application/json"}
+        params = {}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+            params["token"] = key
+
+        try:
+            resp = await client.get(url, headers=headers, params=params, timeout=self.timeout)
+            if resp.status_code == 429:
+                return {"error_code": 429, "msg": "IPinfo Rate Limit Exceeded"}
+            resp.raise_for_status()
+            data = resp.json()
+            if not isinstance(data, dict):
+                data = {}
+            return {
+                "ipinfo_details": data,
+                "ipinfo_org": data.get("org") or "",
+                "ipinfo_hostname": data.get("hostname") or "",
+                "ipinfo_city": data.get("city") or "",
+                "ipinfo_region": data.get("region") or "",
+                "ipinfo_country": data.get("country") or "",
+                "ipinfo_loc": data.get("loc") or "",
+                "ipinfo_timezone": data.get("timezone") or "",
+                "ipinfo_postal": data.get("postal") or "",
+                "ipinfo_anycast": data.get("anycast", False)
+            }
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                return {"error_code": 429, "msg": "IPinfo Rate Limit Exceeded"}
+            print(f"[ThreatIntel] IPinfo HTTP Error for {ip}: {e}")
+        except Exception as e:
+            print(f"[ThreatIntel] IPinfo error for {ip}: {e}")
+        return {}
+
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
         """
-        Enrich a public IP address using AbuseIPDB & VirusTotal APIs.
-        Returns a aggregated threat dictionary.
+        Enrich a public IP address using AbuseIPDB, VirusTotal & IPinfo APIs.
+        Returns an aggregated threat & geolocation dictionary.
         """
         if not is_public_ip(ip):
             return {
@@ -110,7 +148,8 @@ class ThreatIntelClient:
                 "country": "LOCAL",
                 "reports_count": 0,
                 "domain": "Internal/Non-routable",
-                "is_public": False
+                "is_public": False,
+                "ipinfo_details": {}
             }
 
         result = {
@@ -123,7 +162,8 @@ class ThreatIntelClient:
             "reports_count": 0,
             "domain": "",
             "is_public": True,
-            "has_429": False
+            "has_429": False,
+            "ipinfo_details": {}
         }
 
         async with httpx.AsyncClient() as client:
@@ -138,6 +178,20 @@ class ThreatIntelClient:
                 result["has_429"] = True
             else:
                 result.update(vt_data)
+
+            ipinfo_data = await self.fetch_ipinfo(client, ip)
+            if ipinfo_data.get("error_code") == 429:
+                result["has_429"] = True
+            else:
+                result.update(ipinfo_data)
+
+        # Fallback country or domain if not populated by AbuseIPDB
+        if not result.get("country") and result.get("ipinfo_country"):
+            result["country"] = result["ipinfo_country"]
+        if not result.get("domain") and result.get("ipinfo_hostname"):
+            result["domain"] = result["ipinfo_hostname"]
+        elif not result.get("domain") and result.get("ipinfo_org"):
+            result["domain"] = result["ipinfo_org"]
 
         return result
 

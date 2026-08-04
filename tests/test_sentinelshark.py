@@ -52,7 +52,20 @@ class TestSentinelSharkCore(unittest.TestCase):
                 "vt_harmless": 70,
                 "country": "US",
                 "reports_count": 5,
-                "domain": "dns.google"
+                "domain": "dns.google",
+                "ipinfo_details": {
+                    "ip": "8.8.8.8",
+                    "hostname": "dns.google",
+                    "anycast": True,
+                    "city": "Mountain View",
+                    "region": "California",
+                    "country": "US",
+                    "loc": "37.4056,-122.0775",
+                    "org": "AS15169 Google LLC",
+                    "postal": "94043",
+                    "timezone": "America/Los_Angeles",
+                    "privacy": {"vpn": False, "proxy": False, "tor": False}
+                }
             }
             cache.set("8.8.8.8", threat_data)
 
@@ -62,6 +75,9 @@ class TestSentinelSharkCore(unittest.TestCase):
             self.assertEqual(cached["abuse_score"], 15)
             self.assertEqual(cached["vt_malicious"], 2)
             self.assertEqual(cached["country"], "US")
+            self.assertEqual(cached["ipinfo_city"], "Mountain View")
+            self.assertEqual(cached["ipinfo_org"], "AS15169 Google LLC")
+            self.assertEqual(cached["ipinfo_details"]["privacy"]["tor"], False)
             self.assertTrue(cached["cached"])
 
             # Test TTL expiration simulation
@@ -116,6 +132,7 @@ class TestSentinelSharkCore(unittest.TestCase):
             cfg = Config(config_file=tmp_config, env_file=tmp_env)
             cfg.abuseipdb_api_key = "test_abuse_key_123"
             cfg.virustotal_api_key = "test_vt_key_456"
+            cfg.ipinfo_api_key = "test_ipinfo_key_789"
             cfg.default_interface = "wlan0"
             cfg.mock_mode = True
             cfg.auto_scroll = False
@@ -127,6 +144,7 @@ class TestSentinelSharkCore(unittest.TestCase):
                 env_text = f.read()
             self.assertIn("ABUSEIPDB_API_KEY=test_abuse_key_123", env_text)
             self.assertIn("VIRUSTOTAL_API_KEY=test_vt_key_456", env_text)
+            self.assertIn("IPINFO_API_KEY=test_ipinfo_key_789", env_text)
             self.assertIn("DEFAULT_INTERFACE=wlan0", env_text)
             self.assertIn("MOCK_MODE=true", env_text)
             self.assertIn("AUTO_SCROLL=false", env_text)
@@ -136,6 +154,7 @@ class TestSentinelSharkCore(unittest.TestCase):
             cfg2 = Config(config_file=tmp_config, env_file=tmp_env)
             self.assertEqual(cfg2.abuseipdb_api_key, "test_abuse_key_123")
             self.assertEqual(cfg2.virustotal_api_key, "test_vt_key_456")
+            self.assertEqual(cfg2.ipinfo_api_key, "test_ipinfo_key_789")
             self.assertEqual(cfg2.default_interface, "wlan0")
             self.assertTrue(cfg2.mock_mode)
             self.assertFalse(cfg2.auto_scroll)
@@ -162,6 +181,31 @@ class TestSentinelSharkCore(unittest.TestCase):
 
         loopback_name = interface_mapper.get_psutil_name("\\Device\\NPF_Loopback")
         self.assertIsNotNone(loopback_name)
+
+
+    def test_cache_invalidation_when_key_added(self):
+        """Test that cache automatically invalidates entries missing IPinfo data when IPinfo API key is set."""
+        from app.config import config
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            db_path = tmp.name
+
+        try:
+            cache = ThreatCache(db_path=db_path, ttl_hours=24)
+            # Store entry without IPinfo details
+            old_data = {"abuse_score": 10, "vt_malicious": 0, "ipinfo_details": {}}
+            cache.set("1.1.1.1", old_data)
+
+            # Case A: IPinfo key NOT configured -> Cache returns record
+            config.ipinfo_api_key = ""
+            self.assertIsNotNone(cache.get("1.1.1.1"))
+
+            # Case B: IPinfo key IS configured -> Incomplete cache returns None (forcing fresh API lookup)
+            config.ipinfo_api_key = "test_key_active"
+            self.assertIsNone(cache.get("1.1.1.1"))
+        finally:
+            config.ipinfo_api_key = ""
+            if os.path.exists(db_path):
+                os.remove(db_path)
 
 
 if __name__ == "__main__":

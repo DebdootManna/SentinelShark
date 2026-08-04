@@ -68,6 +68,7 @@ class Config:
         self.env_file = env_file
         self.abuseipdb_api_key = ""
         self.virustotal_api_key = ""
+        self.ipinfo_api_key = ""
         self.cache_ttl_hours = 24
         self.max_requests_per_minute = 30
         self.tshark_path = ""
@@ -97,12 +98,15 @@ class Config:
                     # Check for legacy API keys in config.json and migrate to .env
                     legacy_abuse = json_data.get("abuseipdb_api_key")
                     legacy_vt = json_data.get("virustotal_api_key")
-                    if legacy_abuse or legacy_vt:
+                    legacy_ipinfo = json_data.get("ipinfo_api_key")
+                    if legacy_abuse or legacy_vt or legacy_ipinfo:
                         needs_sanitization = True
                         if legacy_abuse and not self.abuseipdb_api_key:
                             self.abuseipdb_api_key = legacy_abuse
                         if legacy_vt and not self.virustotal_api_key:
                             self.virustotal_api_key = legacy_vt
+                        if legacy_ipinfo and not self.ipinfo_api_key:
+                            self.ipinfo_api_key = legacy_ipinfo
             except Exception as e:
                 print(f"[Config] Warning: Failed to parse {self.config_file}: {e}")
 
@@ -116,6 +120,11 @@ class Config:
             os.getenv("VIRUSTOTAL_API_KEY")
             or env_vars.get("VIRUSTOTAL_API_KEY")
             or self.virustotal_api_key
+        )
+        self.ipinfo_api_key = (
+            os.getenv("IPINFO_API_KEY")
+            or env_vars.get("IPINFO_API_KEY")
+            or self.ipinfo_api_key
         )
 
         # Local Machine Settings (stored exclusively in .env so config.json remains un-mutated in git)
@@ -173,6 +182,7 @@ class Config:
             {
                 "ABUSEIPDB_API_KEY": self.abuseipdb_api_key,
                 "VIRUSTOTAL_API_KEY": self.virustotal_api_key,
+                "IPINFO_API_KEY": self.ipinfo_api_key,
                 "DEFAULT_INTERFACE": self.default_interface,
                 "MOCK_MODE": "true" if self.mock_mode else "false",
                 "AUTO_SCROLL": "true" if self.auto_scroll else "false",
@@ -183,6 +193,7 @@ class Config:
         )
         os.environ["ABUSEIPDB_API_KEY"] = self.abuseipdb_api_key
         os.environ["VIRUSTOTAL_API_KEY"] = self.virustotal_api_key
+        os.environ["IPINFO_API_KEY"] = self.ipinfo_api_key
         os.environ["DEFAULT_INTERFACE"] = self.default_interface
         os.environ["MOCK_MODE"] = "true" if self.mock_mode else "false"
         os.environ["AUTO_SCROLL"] = "true" if self.auto_scroll else "false"

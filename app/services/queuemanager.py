@@ -50,7 +50,7 @@ class ThreatIntelQueueManager:
             return
 
         # If no API keys are set, emit default public IP response to avoid wasting queue
-        if not config.abuseipdb_api_key and not config.virustotal_api_key:
+        if not config.abuseipdb_api_key and not config.virustotal_api_key and not config.ipinfo_api_key:
             default_resp = {
                 "ip": ip,
                 "abuse_score": 0,
@@ -87,6 +87,12 @@ class ThreatIntelQueueManager:
             except asyncio.CancelledError:
                 pass
 
+    def clear(self):
+        """Clear queue tracking sets."""
+        self.pending_ips.clear()
+        self.in_progress_ips.clear()
+        self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
+
     async def _worker_loop(self):
         """Main processing loop with rate limit pacing and 429 exponential backoff."""
         while self.is_running:
@@ -96,11 +102,15 @@ class ThreatIntelQueueManager:
                     self.pending_ips.remove(ip)
                 self.in_progress_ips.add(ip)
 
+                # Emit immediate queue status update (item moved to active)
+                self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
+
                 # Check cache once more
                 cached_data = cache.get(ip)
                 if cached_data:
                     self.in_progress_ips.remove(ip)
                     self.signals.threat_resolved.emit(ip, cached_data)
+                    self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
                     self.queue.task_done()
                     continue
 
@@ -119,6 +129,7 @@ class ThreatIntelQueueManager:
                     self.in_progress_ips.remove(ip)
                     self.pending_ips.add(ip)
                     self.queue.put_nowait(ip)
+                    self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
                     self.queue.task_done()
                     continue
 
@@ -137,6 +148,8 @@ class ThreatIntelQueueManager:
                 break
             except Exception as e:
                 print(f"[QueueManager] Error processing item: {e}")
+                self.in_progress_ips.clear()
+                self.signals.queue_status.emit(self.queue.qsize(), len(self.in_progress_ips))
                 await asyncio.sleep(1.0)
 
 
