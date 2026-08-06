@@ -251,6 +251,219 @@ class PacketDissector:
         return tree
 
     @staticmethod
+    def _extract_str_val(layer_dict: Any, field_name: str, default_val: str = "") -> str:
+        """Safely extracts a scalar string from TShark JSON layer fields that may be lists, dicts, or strings."""
+        if not isinstance(layer_dict, dict):
+            return str(default_val)
+        val = layer_dict.get(field_name)
+        if val is None:
+            return str(default_val)
+        if isinstance(val, list):
+            if not val:
+                return str(default_val)
+            val = val[0]
+        if isinstance(val, dict):
+            val = val.get(field_name, default_val)
+        return str(val) if val is not None else str(default_val)
+
+    @staticmethod
+    def dissect_tshark_json_packet(pkt_data: Dict[str, Any], number: int) -> Dict[str, Any]:
+        """Dissect direct tshark JSON stream packet into unified data model."""
+        source = pkt_data.get("_source", {})
+        if "layers" in source:
+            layers = source["layers"]
+        elif "layers" in pkt_data:
+            layers = pkt_data["layers"]
+        else:
+            layers = {}
+
+        # 1. Frame info & Timestamp
+        frame = layers.get("frame", {})
+        raw_epoch = PacketDissector._extract_str_val(frame, "frame.time_epoch", "")
+        try:
+            time_epoch = float(raw_epoch) if raw_epoch else time.time()
+        except (ValueError, TypeError):
+            time_epoch = time.time()
+
+        time_str = time.strftime("%H:%M:%S", time.localtime(time_epoch)) + f".{int((time_epoch % 1) * 1000):03d}"
+
+        raw_len = PacketDissector._extract_str_val(frame, "frame.len", "0")
+        try:
+            length = int(raw_len)
+        except (ValueError, TypeError):
+            length = 0
+
+        # 2. IP / IPv6 Addresses
+        ip_layer = layers.get("ip", {})
+        ipv6_layer = layers.get("ipv6", {})
+        src_ip = PacketDissector._extract_str_val(ip_layer, "ip.src") or PacketDissector._extract_str_val(ipv6_layer, "ipv6.src", "N/A")
+        dst_ip = PacketDissector._extract_str_val(ip_layer, "ip.dst") or PacketDissector._extract_str_val(ipv6_layer, "ipv6.dst", "N/A")
+
+        # 3. Transport Ports
+        tcp_layer = layers.get("tcp", {})
+        udp_layer = layers.get("udp", {})
+        src_port = PacketDissector._extract_str_val(tcp_layer, "tcp.srcport") or PacketDissector._extract_str_val(udp_layer, "udp.srcport", "")
+        dst_port = PacketDissector._extract_str_val(tcp_layer, "tcp.dstport") or PacketDissector._extract_str_val(udp_layer, "udp.dstport", "")
+
+        # 4. Protocol & Info line determination
+        protocol = "RAW"
+        info = "Network Packet"
+
+        if "dns" in layers:
+            protocol = "DNS"
+            dns = layers.get("dns", {})
+            qry_name = PacketDissector._extract_str_val(dns, "dns.qry.name")
+            tid = PacketDissector._extract_str_val(dns, "dns.id")
+            info = f"Standard query {tid} A {qry_name}" if qry_name else "DNS Query / Response"
+        elif "http" in layers:
+            protocol = "HTTP"
+            http = layers.get("http", {})
+            method = PacketDissector._extract_str_val(http, "http.request.method")
+            uri = PacketDissector._extract_str_val(http, "http.request.uri")
+            info = f"HTTP {method} {uri}" if method else "HTTP Response / Data"
+        elif "tls" in layers or "ssl" in layers:
+            protocol = "HTTPS"
+            info = f"TLS/HTTPS Encrypted Session ({src_port} -> {dst_port})"
+        elif "ssh" in layers:
+            protocol = "SSH"
+            info = f"SSH Session ({src_port} -> {dst_port})"
+        elif "icmp" in layers:
+            protocol = "ICMP"
+            icmp = layers.get("icmp", {})
+            itype = PacketDissector._extract_str_val(icmp, "icmp.type")
+            icode = PacketDissector._extract_str_val(icmp, "icmp.code")
+            info = f"ICMP Type={itype} Code={icode}" if itype else "ICMP Packet"
+        elif isinstance(tcp_layer, dict) and tcp_layer:
+            protocol = "TCP"
+            flags = PacketDissector._extract_str_val(tcp_layer, "tcp.flags")
+            info = f"TCP {src_port} -> {dst_port} [Flags: {flags}]"
+        elif isinstance(udp_layer, dict) and udp_layer:
+            protocol = "UDP"
+            ulen = PacketDissector._extract_str_val(udp_layer, "udp.length", str(length))
+            info = f"UDP {src_port} -> {dst_port} Len={ulen}"
+        else:
+            layer_keys = [k.upper() for k in layers.keys() if k not in ("frame", "frame_raw", "eth")]
+            if layer_keys:
+                protocol = layer_keys[-1]
+                info = f"{protocol} Protocol Packet"
+
+        # 5. Extract Raw Bytes from frame_raw / frame
+        raw_bytes = b""
+        frame_raw = layers.get("frame_raw")
+        raw_hex = ""
+        if isinstance(frame_raw, str):
+            raw_hex = frame_raw
+        elif isinstance(frame_raw, list) and frame_raw:
+            raw_hex = str(frame_raw[0])
+        elif isinstance(frame_raw, dict):
+            raw_hex = PacketDissector._extract_str_val(frame_raw, "value", "")
+
+        if raw_hex:
+            try:
+                raw_bytes = bytes.fromhex(raw_hex)
+            except Exception:
+                pass
+
+        hex_dump, ascii_str = format_hex_dump(raw_bytes)
+        hashes = calculate_payload_hash(raw_bytes)
+
+        # 6. Build Layers Tree
+        layers_tree = []
+        # Frame
+        frame_proto = PacketDissector._extract_str_val(frame, "frame.protocols", "N/A") if isinstance(frame, dict) else "N/A"
+        layers_tree.append({
+            "name": f"Frame {number}: {length} bytes on wire",
+            "children": [
+                f"Arrival Time: {time_str}",
+                f"Frame Length: {length} bytes",
+                f"Protocols in Frame: {frame_proto}"
+            ]
+        })
+        # Eth
+        eth = layers.get("eth", {})
+        if isinstance(eth, dict) and eth:
+            eth_src = PacketDissector._extract_str_val(eth, "eth.src", "N/A")
+            eth_dst = PacketDissector._extract_str_val(eth, "eth.dst", "N/A")
+            eth_type = PacketDissector._extract_str_val(eth, "eth.type", "N/A")
+            layers_tree.append({
+                "name": f"Ethernet II, Src: {eth_src}, Dst: {eth_dst}",
+                "children": [
+                    f"Destination: {eth_dst}",
+                    f"Source: {eth_src}",
+                    f"Type: {eth_type}"
+                ]
+            })
+        # IP
+        if isinstance(ip_layer, dict) and ip_layer:
+            hdr_len = PacketDissector._extract_str_val(ip_layer, "ip.hdr_len", "20")
+            ttl = PacketDissector._extract_str_val(ip_layer, "ip.ttl", "64")
+            proto_val = PacketDissector._extract_str_val(ip_layer, "ip.proto", "N/A")
+            chksum = PacketDissector._extract_str_val(ip_layer, "ip.checksum", "N/A")
+            layers_tree.append({
+                "name": f"Internet Protocol Version 4, Src: {src_ip}, Dst: {dst_ip}",
+                "children": [
+                    "Version: 4",
+                    f"Header Length: {hdr_len} bytes",
+                    f"Time to Live (TTL): {ttl}",
+                    f"Protocol: {proto_val}",
+                    f"Header Checksum: {chksum}",
+                    f"Source Address: {src_ip}",
+                    f"Destination Address: {dst_ip}"
+                ]
+            })
+        # TCP / UDP
+        if isinstance(tcp_layer, dict) and tcp_layer:
+            seq = PacketDissector._extract_str_val(tcp_layer, "tcp.seq", "N/A")
+            ack = PacketDissector._extract_str_val(tcp_layer, "tcp.ack", "N/A")
+            hdr_len = PacketDissector._extract_str_val(tcp_layer, "tcp.hdr_len", "N/A")
+            flags = PacketDissector._extract_str_val(tcp_layer, "tcp.flags", "N/A")
+            win = PacketDissector._extract_str_val(tcp_layer, "tcp.window_size", "N/A")
+            layers_tree.append({
+                "name": f"Transmission Control Protocol, Src Port: {src_port}, Dst Port: {dst_port}",
+                "children": [
+                    f"Source Port: {src_port}",
+                    f"Destination Port: {dst_port}",
+                    f"Sequence Number: {seq}",
+                    f"Acknowledge Number: {ack}",
+                    f"Header Length: {hdr_len}",
+                    f"Flags: {flags}",
+                    f"Window Size: {win}"
+                ]
+            })
+        elif isinstance(udp_layer, dict) and udp_layer:
+            ulen = PacketDissector._extract_str_val(udp_layer, "udp.length", "N/A")
+            uchk = PacketDissector._extract_str_val(udp_layer, "udp.checksum", "N/A")
+            layers_tree.append({
+                "name": f"User Datagram Protocol, Src Port: {src_port}, Dst Port: {dst_port}",
+                "children": [
+                    f"Source Port: {src_port}",
+                    f"Destination Port: {dst_port}",
+                    f"Length: {ulen}",
+                    f"Checksum: {uchk}"
+                ]
+            })
+
+        return {
+            "no": number,
+            "time": time_str,
+            "src": src_ip,
+            "dst": dst_ip,
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "protocol": protocol,
+            "length": length,
+            "info": info,
+            "raw_bytes": raw_bytes,
+            "hex_dump": hex_dump,
+            "ascii_str": ascii_str,
+            "payload_md5": hashes["md5"],
+            "payload_sha256": hashes["sha256"],
+            "layers_tree": layers_tree,
+            "threat_score": 0,
+            "threat_data": None
+        }
+
+    @staticmethod
     def dissect_dict_packet(pkt_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Dissect dict/mock packet into unified structure."""
         raw_bytes = pkt_dict.get("raw_bytes", b"")
@@ -261,3 +474,4 @@ class PacketDissector:
         pkt_dict["payload_md5"] = hashes["md5"]
         pkt_dict["payload_sha256"] = hashes["sha256"]
         return pkt_dict
+

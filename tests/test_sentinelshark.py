@@ -235,6 +235,67 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertTrue(table.isRowHidden(0))
         self.assertFalse(table.isRowHidden(1))
 
+    def test_tshark_json_packet_dissector(self):
+        """Test high-speed tshark JSON packet dissector."""
+        pkt_json = {
+            "_source": {
+                "layers": {
+                    "frame": {
+                        "frame.time_epoch": "1722950000.123",
+                        "frame.len": "128",
+                        "frame.protocols": "eth:ip:tcp:http"
+                    },
+                    "eth": {
+                        "eth.src": "00:11:22:33:44:55",
+                        "eth.dst": "66:77:88:99:aa:bb",
+                        "eth.type": "0x0800"
+                    },
+                    "ip": {
+                        "ip.src": ["192.168.1.100"],
+                        "ip.dst": ["8.8.8.8"],
+                        "ip.proto": ["6"],
+                        "ip.ttl": ["64"]
+                    },
+                    "tcp": {
+                        "tcp.srcport": "54321",
+                        "tcp.dstport": "80",
+                        "tcp.flags": "0x0002"
+                    },
+                    "http": {
+                        "http.request.method": "GET",
+                        "http.request.uri": "/index.html"
+                    },
+                    "frame_raw": "4500003c"
+                }
+            }
+        }
+        dissected = PacketDissector.dissect_tshark_json_packet(pkt_json, 1)
+        self.assertEqual(dissected["no"], 1)
+        self.assertEqual(dissected["src"], "192.168.1.100")
+        self.assertEqual(dissected["dst"], "8.8.8.8")
+        self.assertEqual(dissected["src_port"], "54321")
+        self.assertEqual(dissected["dst_port"], "80")
+        self.assertEqual(dissected["protocol"], "HTTP")
+        self.assertEqual(dissected["info"], "HTTP GET /index.html")
+        self.assertEqual(len(dissected["layers_tree"]), 4)
+
+    def test_packet_table_batching(self):
+        """Test PacketTable batched insertion."""
+        from PyQt6.QtWidgets import QApplication
+        from app.ui.components.packettable import PacketTable
+
+        app = QApplication.instance() or QApplication([])
+        table = PacketTable()
+        batch = [
+            {"no": 1, "src": "10.0.0.1", "dst": "8.8.8.8", "protocol": "DNS", "info": "DNS Query"},
+            {"no": 2, "src": "10.0.0.1", "dst": "1.1.1.1", "protocol": "HTTPS", "info": "TLS Client Hello"}
+        ]
+        table.add_packets_batch(batch)
+        self.assertEqual(table.rowCount(), 2)
+        self.assertEqual(table.item(0, 2).text(), "10.0.0.1")
+        self.assertEqual(table.item(1, 3).text(), "1.1.1.1")
+
 
 if __name__ == "__main__":
     unittest.main()
+

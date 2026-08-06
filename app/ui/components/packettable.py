@@ -104,50 +104,61 @@ class PacketTable(QTableWidget):
             visible = self._matches_filter(pkt)
             self.setRowHidden(row, not visible)
 
+    def add_packets_batch(self, pkt_list: List[Dict[str, Any]]):
+        """Append a list of packets in a single high-performance UI batch repaint cycle."""
+        if not pkt_list:
+            return
+
+        self.setUpdatesEnabled(False)
+        last_visible_row = -1
+
+        try:
+            for pkt in pkt_list:
+                row = self.rowCount()
+                self.insertRow(row)
+                self.packets.append(pkt)
+
+                src_ip = pkt.get("src", "")
+                dst_ip = pkt.get("dst", "")
+
+                if src_ip:
+                    self.ip_row_map.setdefault(src_ip, []).append(row)
+                if dst_ip:
+                    self.ip_row_map.setdefault(dst_ip, []).append(row)
+
+                threat_str = "0% (Safe)"
+                items = [
+                    QTableWidgetItem(str(pkt.get("no", row + 1))),
+                    QTableWidgetItem(str(pkt.get("time", ""))),
+                    QTableWidgetItem(str(src_ip)),
+                    QTableWidgetItem(str(dst_ip)),
+                    QTableWidgetItem(str(pkt.get("protocol", ""))),
+                    QTableWidgetItem(str(pkt.get("length", 0))),
+                    QTableWidgetItem(str(pkt.get("info", ""))),
+                    QTableWidgetItem(threat_str)
+                ]
+
+                items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                items[5].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                items[7].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+                for col, item in enumerate(items):
+                    self.setItem(row, col, item)
+
+                self._apply_row_style(row, pkt.get("threat_data"))
+                self._update_row_visibility(row)
+
+                if not self.isRowHidden(row):
+                    last_visible_row = row
+        finally:
+            self.setUpdatesEnabled(True)
+
+        if config.auto_scroll and last_visible_row >= 0:
+            self.scrollToBottom()
+
     def add_packet(self, pkt: Dict[str, Any]):
         """Append packet to table with styled items."""
-        row = self.rowCount()
-        self.insertRow(row)
-        self.packets.append(pkt)
-
-        src_ip = pkt.get("src", "")
-        dst_ip = pkt.get("dst", "")
-
-        # Track row indices for IP updates
-        if src_ip:
-            self.ip_row_map.setdefault(src_ip, []).append(row)
-        if dst_ip:
-            self.ip_row_map.setdefault(dst_ip, []).append(row)
-
-        threat_str = "0% (Safe)"
-        items = [
-            QTableWidgetItem(str(pkt.get("no", row + 1))),
-            QTableWidgetItem(str(pkt.get("time", ""))),
-            QTableWidgetItem(str(src_ip)),
-            QTableWidgetItem(str(dst_ip)),
-            QTableWidgetItem(str(pkt.get("protocol", ""))),
-            QTableWidgetItem(str(pkt.get("length", 0))),
-            QTableWidgetItem(str(pkt.get("info", ""))),
-            QTableWidgetItem(threat_str)
-        ]
-
-        # Right-align number & length
-        items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        items[5].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        items[7].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        for col, item in enumerate(items):
-            self.setItem(row, col, item)
-
-        # Apply initial styling
-        self._apply_row_style(row, pkt.get("threat_data"))
-
-        # Apply current filter visibility
-        self._update_row_visibility(row)
-
-        # Auto-scroll if enabled and row is visible
-        if config.auto_scroll and not self.isRowHidden(row):
-            self.scrollToBottom()
+        self.add_packets_batch([pkt])
 
     def update_threat_intel(self, ip: str, threat_data: Dict[str, Any]):
         """Dynamically update threat score and color-coding for all matching packet rows."""

@@ -425,19 +425,32 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def on_packet_captured(self, pkt: dict):
-        """Handle newly captured packet emitted by worker thread."""
+        """Handle individual packet emitted by worker thread."""
         self.packet_table.add_packet(pkt)
         self.stats_panel.update_packet_stats(pkt)
 
-        # Extract Destination IP for threat intel checking
         dst_ip = pkt.get("dst", "")
         if dst_ip:
             queue_manager.enqueue_ip(dst_ip)
         
-        # Also check Source IP if public
         src_ip = pkt.get("src", "")
         if src_ip:
             queue_manager.enqueue_ip(src_ip)
+
+    @pyqtSlot(list)
+    def on_packets_batch_captured(self, pkt_list: list):
+        """Handle batch of newly captured packets emitted by worker thread."""
+        if not pkt_list:
+            return
+        self.packet_table.add_packets_batch(pkt_list)
+        for pkt in pkt_list:
+            self.stats_panel.update_packet_stats(pkt)
+            dst_ip = pkt.get("dst", "")
+            if dst_ip:
+                queue_manager.enqueue_ip(dst_ip)
+            src_ip = pkt.get("src", "")
+            if src_ip:
+                queue_manager.enqueue_ip(src_ip)
 
     @pyqtSlot(dict)
     def on_packet_selected(self, pkt: dict):
@@ -466,8 +479,10 @@ class MainWindow(QMainWindow):
         )
 
         self.capture_thread.packet_received.connect(self.on_packet_captured)
+        self.capture_thread.packets_batch_received.connect(self.on_packets_batch_captured)
         self.capture_thread.status_changed.connect(self.update_capture_status)
         self.capture_thread.error_occurred.connect(self.show_capture_error)
+        self.capture_thread.permission_error_occurred.connect(self.on_permission_error)
 
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -475,6 +490,34 @@ class MainWindow(QMainWindow):
         self.bpf_edit.setEnabled(False)
 
         self.capture_thread.start()
+
+    @pyqtSlot(str)
+    def on_permission_error(self, err_msg: str):
+        """Show permission guidance dialog when OS permissions block BPF device capture."""
+        import sys
+        if sys.platform == "darwin":
+            cmd_hint = "sudo ./venv/bin/python run.py\n\nOr grant access to BPF devices:\nsudo chmod 666 /dev/bpf*"
+        elif sys.platform == "win32":
+            cmd_hint = "Ensure Npcap is installed with 'WinPcap API-compatible mode' and run as Administrator."
+        else:
+            cmd_hint = "sudo setcap cap_net_raw,cap_net_admin=eip $(which tshark)\n\nOr run with sudo:\nsudo ./venv/bin/python run.py"
+
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("SentinelShark - Capture Permission Required")
+        msg_box.setText("<b>Network Interface Access Denied</b>")
+        msg_box.setInformativeText(
+            f"{err_msg}\n\n"
+            f"<b>To sniff live network traffic, run with elevated permissions:</b>\n"
+            f"<pre style='background: #1e293b; padding: 6px; color: #38bdf8;'>{cmd_hint}</pre>\n"
+            "Click <b>Switch to Mock Mode</b> to run with simulated high-speed network traffic."
+        )
+        btn_mock = msg_box.addButton("Switch to Mock Mode", QMessageBox.ButtonRole.AcceptRole)
+        msg_box.addButton(QMessageBox.StandardButton.Close)
+        msg_box.exec()
+
+        if msg_box.clickedButton() == btn_mock:
+            self.toggle_mock_mode(True)
 
     def stop_capture(self):
         """Stop running capture thread."""
@@ -539,6 +582,7 @@ class MainWindow(QMainWindow):
             config.default_interface = selected
             config.save()
             self.statusbar.showMessage(f"Selected network interface: {selected}", 4000)
+            self.start_capture()
 
     def show_about(self):
         QMessageBox.about(
