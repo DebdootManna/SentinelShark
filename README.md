@@ -22,8 +22,8 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 - **Smart BPF & Real-Time Search Filtering**:
   - **BPF Sanitizer**: Translates user-friendly shortcuts (`http`, `dns`, `https`, `ssh`, `8.8.8.8`) into valid BPF syntax for TShark while gracefully handling syntax errors.
   - **Live Table Filter**: Instantly filters packet rows as you type in the search bar.
-- **Smart Non-Routable IP Filtering**: Automatically skips RFC 1918 private IP ranges (`10.0.0.0/8`, `172.16.0.4`, `192.168.0.0/16`), loopback, link-local, and multicast addresses to conserve API limits.
-- **In-Memory TTL Caching**: High-performance in-memory TTL cache with configurable TTL (24-hour default) and fast LRU eviction.
+- **Smart Non-Routable IP Filtering**: Automatically skips RFC 1918 private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, link-local, and multicast addresses to conserve API limits.
+- **In-Memory TTL Caching**: High-performance in-memory TTL cache with configurable TTL (24-hour default) and fast LRU eviction, avoiding disk database overhead.
 - **Rate Limiting & Exponential Backoff**: Async background queue manager handles rate-limiting and automatically performs exponential backoff on HTTP 429 errors.
 - **High-Performance PyQt6 UI**:
   - **Packet Table**: Color-coded rows highlighting public IPs (Red = Critical Threat, Amber/Orange = Medium Risk, Green = Safe Public IP).
@@ -88,9 +88,24 @@ pip install -r requirements.txt
 ```
 
 ### 3. Running the Application
+
 ```bash
+# Standard Execution (Sniffs live interface or falls back to Mock Mode)
 python run.py
+
+# Elevated Execution on macOS (Required for raw /dev/bpf live interface sniffing)
+sudo ./venv/bin/python run.py
 ```
+
+---
+
+## PCAP & PCAPNG File Capabilities
+
+- **Saving Captures**: Navigate to **File -> Save Capture As...** (`Ctrl+S` / `Cmd+S`) or click **Save Capture** on the toolbar. Saves raw packet payloads to standard `.pcap` or `.pcapng` files (100% compatible with Wireshark and TShark).
+- **Opening Captures**: Navigate to **File -> Open PCAP File...** (`Ctrl+O` / `Cmd+O`).
+  - Displays a prompt: *"This file has not been analyzed. Do you want to analyze it?"*
+  - **Yes**: Analyzes public IP traffic with AbuseIPDB, VirusTotal, and IPinfo threat intelligence.
+  - **No**: Loads the capture without API threat lookups, leaving threat intel inspector sections un-analyzed.
 
 ---
 
@@ -112,7 +127,7 @@ You can configure API keys via environment variables or inside the GUI:
 
 ## Running Unit Tests
 
-Run the test suite to verify core components, IP filtering, BPF sanitization, and SQLite caching logic:
+Run the test suite to verify core components, IP filtering, BPF sanitization, in-memory TTL caching, PCAP exporter, and packet dissector logic:
 ```bash
 python -m unittest discover tests
 ```
