@@ -6,7 +6,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.json"
 ENV_PATH = BASE_DIR / ".env"
-CACHE_DB_PATH = BASE_DIR / "threatcache.db"
 
 
 def parse_env_file(env_path: Path) -> dict:

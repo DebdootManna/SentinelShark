@@ -104,7 +104,7 @@ class PacketDetailView(QWidget):
             f"VirusTotal Detections: {vt_mal} Malicious, {vt_susp} Suspicious",
             f"Geographic Country Code: {country}",
             f"Associated Domain: {domain}",
-            f"Cache Status: {'Cached (SQLite)' if threat.get('cached') else 'Live API Lookup'}"
+            f"Cache Status: {'In-Memory Cache' if threat.get('cached') else 'Live API Lookup'}"
         ]
 
         for child in children:

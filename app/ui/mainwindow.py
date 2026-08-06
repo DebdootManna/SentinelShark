@@ -24,7 +24,11 @@ from app.ui.components.sparkline import SparklineWidget
 from app.core.interfacemapper import interface_mapper
 
 
+from app.core.pcapwriter import save_pcap_file
+
+
 class InterfaceSelectionDialog(QDialog):
+
     """
     Wireshark-style modal dialog displaying real-time packet activity sparklines
     for all host network interfaces.
@@ -268,6 +272,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(DARK_THEME_QSS)
 
         self.capture_thread: Optional[LiveCaptureThread] = None
+        self.analyze_pcap_threats: bool = True
 
         self.init_ui()
         self.wire_signals()
@@ -279,8 +284,15 @@ class MainWindow(QMainWindow):
         
         file_menu = menubar.addMenu("File")
         open_pcap_act = QAction("Open PCAP File...", self)
+        open_pcap_act.setShortcut("Ctrl+O")
         open_pcap_act.triggered.connect(self.open_pcap_dialog)
         file_menu.addAction(open_pcap_act)
+
+        save_pcap_act = QAction("Save Capture As...", self)
+        save_pcap_act.setShortcut("Ctrl+S")
+        save_pcap_act.triggered.connect(self.save_pcap_dialog)
+        file_menu.addAction(save_pcap_act)
+
         file_menu.addSeparator()
         exit_act = QAction("Exit", self)
         exit_act.triggered.connect(self.close)
@@ -332,6 +344,10 @@ class MainWindow(QMainWindow):
         self.clear_btn = QPushButton("Clear")
         self.clear_btn.clicked.connect(self.clear_all)
         toolbar.addWidget(self.clear_btn)
+
+        self.save_btn = QPushButton("Save Capture")
+        self.save_btn.clicked.connect(self.save_pcap_dialog)
+        toolbar.addWidget(self.save_btn)
 
         toolbar.addSeparator()
 
@@ -429,13 +445,13 @@ class MainWindow(QMainWindow):
         self.packet_table.add_packet(pkt)
         self.stats_panel.update_packet_stats(pkt)
 
-        dst_ip = pkt.get("dst", "")
-        if dst_ip:
-            queue_manager.enqueue_ip(dst_ip)
-        
-        src_ip = pkt.get("src", "")
-        if src_ip:
-            queue_manager.enqueue_ip(src_ip)
+        if self.analyze_pcap_threats:
+            dst_ip = pkt.get("dst", "")
+            if dst_ip:
+                queue_manager.enqueue_ip(dst_ip)
+            src_ip = pkt.get("src", "")
+            if src_ip:
+                queue_manager.enqueue_ip(src_ip)
 
     @pyqtSlot(list)
     def on_packets_batch_captured(self, pkt_list: list):
@@ -445,12 +461,13 @@ class MainWindow(QMainWindow):
         self.packet_table.add_packets_batch(pkt_list)
         for pkt in pkt_list:
             self.stats_panel.update_packet_stats(pkt)
-            dst_ip = pkt.get("dst", "")
-            if dst_ip:
-                queue_manager.enqueue_ip(dst_ip)
-            src_ip = pkt.get("src", "")
-            if src_ip:
-                queue_manager.enqueue_ip(src_ip)
+            if self.analyze_pcap_threats:
+                dst_ip = pkt.get("dst", "")
+                if dst_ip:
+                    queue_manager.enqueue_ip(dst_ip)
+                src_ip = pkt.get("src", "")
+                if src_ip:
+                    queue_manager.enqueue_ip(src_ip)
 
     @pyqtSlot(dict)
     def on_packet_selected(self, pkt: dict):
@@ -468,6 +485,9 @@ class MainWindow(QMainWindow):
         """Start live packet capture or PCAP file reading thread."""
         if self.capture_thread and self.capture_thread.isRunning():
             return
+
+        if not pcap_file:
+            self.analyze_pcap_threats = True
 
         iface = self.iface_combo.currentText()
         bpf = self.bpf_edit.text()
@@ -551,8 +571,47 @@ class MainWindow(QMainWindow):
             self, "Open PCAP File", "", "Packet Capture Files (*.pcap *.pcapng *.cap);;All Files (*)"
         )
         if file_path:
+            filename = os.path.basename(file_path)
+            msg_box = QMessageBox(self)
+            msg_box.setIcon(QMessageBox.Icon.Question)
+            msg_box.setWindowTitle("SentinelShark - Analyze Capture File?")
+            msg_box.setText("<b>This file has not been analyzed. Do you want to analyze it?</b>")
+            msg_box.setInformativeText(
+                f"File: <b>{filename}</b>\n\n"
+                "Would you like SentinelShark to analyze public IP traffic with AbuseIPDB, VirusTotal, and IPinfo threat intelligence?"
+            )
+            btn_yes = msg_box.addButton("Yes", QMessageBox.ButtonRole.YesRole)
+            btn_no = msg_box.addButton("No", QMessageBox.ButtonRole.NoRole)
+            msg_box.setDefaultButton(btn_yes)
+            msg_box.exec()
+
+            self.analyze_pcap_threats = (msg_box.clickedButton() == btn_yes)
+
             self.clear_all()
             self.start_capture(pcap_file=file_path)
+
+    def save_pcap_dialog(self):
+        if not self.packet_table.packets:
+            QMessageBox.information(self, "Save Capture", "No captured packets available to save.")
+            return
+
+        file_path, chosen_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save Packet Capture As...",
+            "capture.pcapng",
+            "Wireshark PCAPNG (*.pcapng);;Wireshark PCAP (*.pcap);;All Files (*)"
+        )
+        if file_path:
+            success = save_pcap_file(file_path, self.packet_table.packets)
+            if success:
+                self.statusbar.showMessage(f"Successfully saved {len(self.packet_table.packets)} packets to {file_path}", 5000)
+                QMessageBox.information(
+                    self,
+                    "Save Successful",
+                    f"Capture file successfully saved to:\n{file_path}\n\n100% compatible with Wireshark and TShark."
+                )
+            else:
+                QMessageBox.warning(self, "Save Error", f"Failed to save capture file to:\n{file_path}")
 
     def open_api_settings(self):
         dlg = APISettingsDialog(self)

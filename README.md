@@ -1,7 +1,7 @@
 # SentinelShark
 > **Modern Desktop Network Intrusion Detection & Analysis System (NIDS)**
 
-SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, `httpx`, and **SQLite**. Tested and verified on both **macOS** and **Windows**, it dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence and geolocation data from **VirusTotal**, **AbuseIPDB**, and **IPinfo**.
+SentinelShark is a high-performance, modern Wireshark clone built with **Python 3.10+**, **PyQt6**, **PyShark**, and `httpx`. Tested and verified on both **macOS** and **Windows**, it dissects live network packets in real time and enriches public IP traffic with real-time threat intelligence and geolocation data from **VirusTotal**, **AbuseIPDB**, and **IPinfo**.
 
 ![mock mode screenshot](image.png)
 
@@ -10,7 +10,10 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 ## Key Features
 
 - **Cross-Platform Compatibility**: Fully tested, optimized, and verified on **macOS** and **Windows 10/11**.
-- **Live & Offline Packet Capture**: Sniff live interface traffic using `PyShark` (tshark/Npcap) or analyze `.pcap` / `.pcapng` capture files.
+- **Live Sniffing & PCAP / PCAPNG Import & Export**:
+  - Sniff live interface traffic using line-buffered TShark subprocess streaming.
+  - Export packet captures to standard `.pcap` and `.pcapng` files (100% native Wireshark compatibility).
+  - Open `.pcap` / `.pcapng` files with an interactive **Threat Analysis Prompt** ("Do you want to analyze this file?").
 - **Graceful Fallback & Mock Generator**: Built-in high-fidelity Mock Traffic Generator ensures SentinelShark functions out-of-the-box even when `tshark` is not installed on the host machine.
 - **Threat Intelligence & Geolocation Enrichment**:
   - **IPinfo Integration**: Queries and displays complete IP details (hostname, organization, ASN, city, region, country, coordinates, timezone, postal code, anycast flags, privacy indicators, etc.).
@@ -19,8 +22,8 @@ SentinelShark is a high-performance, modern Wireshark clone built with **Python 
 - **Smart BPF & Real-Time Search Filtering**:
   - **BPF Sanitizer**: Translates user-friendly shortcuts (`http`, `dns`, `https`, `ssh`, `8.8.8.8`) into valid BPF syntax for TShark while gracefully handling syntax errors.
   - **Live Table Filter**: Instantly filters packet rows as you type in the search bar.
-- **Smart Non-Routable IP Filtering**: Automatically skips RFC 1918 private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, link-local, and multicast addresses to conserve API limits.
-- **SQLite & In-Memory TTL Caching**: Persists threat intelligence in `threatcache.db` with configurable TTL (24-hour default), automatic schema migration, and fast in-memory LRU caching.
+- **Smart Non-Routable IP Filtering**: Automatically skips RFC 1918 private IP ranges (`10.0.0.0/8`, `172.16.0.4`, `192.168.0.0/16`), loopback, link-local, and multicast addresses to conserve API limits.
+- **In-Memory TTL Caching**: High-performance in-memory TTL cache with configurable TTL (24-hour default) and fast LRU eviction.
 - **Rate Limiting & Exponential Backoff**: Async background queue manager handles rate-limiting and automatically performs exponential backoff on HTTP 429 errors.
 - **High-Performance PyQt6 UI**:
   - **Packet Table**: Color-coded rows highlighting public IPs (Red = Critical Threat, Amber/Orange = Medium Risk, Green = Safe Public IP).
@@ -45,14 +48,15 @@ sentinelshark/
     ├── main.py                # PyQt6 + qasync event loop launcher (Windows/macOS compatible)
     ├── config.py              # Configuration & API Key manager
     ├── core/
-    │   ├── capture.py         # PyShark & Mock capture worker thread (QThread)
+    │   ├── capture.py         # TShark subprocess & Mock capture worker thread (QThread)
     │   ├── parser.py          # Protocol dissector & Hex/ASCII formatter
-    │   └── cache.py           # SQLite persistent cache & TTL manager
+    │   ├── pcapwriter.py      # Native binary PCAP / PCAPNG file exporter
+    │   └── cache.py           # In-memory TTL threat cache manager
     ├── services/
     │   ├── threatintel.py     # Async AbuseIPDB, VirusTotal & IPinfo httpx client
     │   └── queuemanager.py    # Prioritized lookup queue & rate limiter
     └── ui/
-        ├── mainwindow.py      # Main application window & toolbar
+        ├── mainwindow.py      # Main application window, menu shortcuts & toolbar
         ├── styles.py          # Modern dark-mode QSS stylesheet
         └── components/
             ├── packettable.py # Color-coded packet list widget

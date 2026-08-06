@@ -32,62 +32,48 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertTrue(is_public_ip("185.220.101.5"))
         self.assertTrue(is_public_ip("93.184.216.34"))
 
-    def test_sqlite_threat_cache(self):
-        """Test SQLite persistent cache & TTL expiration logic."""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-            db_path = tmp.name
+    def test_in_memory_threat_cache(self):
+        """Test pure in-memory TTL threat cache manager."""
+        # Create cache with 1-hour TTL
+        cache = ThreatCache(ttl_hours=1)
+        
+        # Initial lookup -> Should return None
+        self.assertIsNone(cache.get("8.8.8.8"))
 
-        try:
-            # Create cache with 1-hour TTL
-            cache = ThreatCache(db_path=db_path, ttl_hours=1)
-            
-            # Initial lookup -> Should return None
-            self.assertIsNone(cache.get("8.8.8.8"))
-
-            # Store threat intel
-            threat_data = {
-                "abuse_score": 15,
-                "vt_malicious": 2,
-                "vt_suspicious": 1,
-                "vt_harmless": 70,
+        # Store threat intel
+        threat_data = {
+            "abuse_score": 15,
+            "vt_malicious": 2,
+            "vt_suspicious": 1,
+            "vt_harmless": 70,
+            "country": "US",
+            "reports_count": 5,
+            "domain": "dns.google",
+            "ipinfo_details": {
+                "ip": "8.8.8.8",
+                "hostname": "dns.google",
+                "anycast": True,
+                "city": "Mountain View",
+                "region": "California",
                 "country": "US",
-                "reports_count": 5,
-                "domain": "dns.google",
-                "ipinfo_details": {
-                    "ip": "8.8.8.8",
-                    "hostname": "dns.google",
-                    "anycast": True,
-                    "city": "Mountain View",
-                    "region": "California",
-                    "country": "US",
-                    "loc": "37.4056,-122.0775",
-                    "org": "AS15169 Google LLC",
-                    "postal": "94043",
-                    "timezone": "America/Los_Angeles",
-                    "privacy": {"vpn": False, "proxy": False, "tor": False}
-                }
+                "loc": "37.4056,-122.0775",
+                "org": "AS15169 Google LLC",
+                "postal": "94043",
+                "timezone": "America/Los_Angeles",
+                "privacy": {"vpn": False, "proxy": False, "tor": False}
             }
-            cache.set("8.8.8.8", threat_data)
+        }
+        cache.set("8.8.8.8", threat_data)
 
-            # Retrieve from cache
-            cached = cache.get("8.8.8.8")
-            self.assertIsNotNone(cached)
-            self.assertEqual(cached["abuse_score"], 15)
-            self.assertEqual(cached["vt_malicious"], 2)
-            self.assertEqual(cached["country"], "US")
-            self.assertEqual(cached["ipinfo_city"], "Mountain View")
-            self.assertEqual(cached["ipinfo_org"], "AS15169 Google LLC")
-            self.assertEqual(cached["ipinfo_details"]["privacy"]["tor"], False)
-            self.assertTrue(cached["cached"])
-
-            # Test TTL expiration simulation
-            expired_cache = ThreatCache(db_path=db_path, ttl_hours=0) # 0 seconds TTL
-            expired_cache.mem_cache.clear()
-            self.assertIsNone(expired_cache.get("8.8.8.8"))
-
-        finally:
-            if os.path.exists(db_path):
-                os.remove(db_path)
+        # Retrieve from cache
+        cached = cache.get("8.8.8.8")
+        self.assertIsNotNone(cached)
+        self.assertEqual(cached["abuse_score"], 15)
+        self.assertEqual(cached["vt_malicious"], 2)
+        self.assertEqual(cached["country"], "US")
+        self.assertEqual(cached["ipinfo_city"], "Mountain View")
+        self.assertEqual(cached["ipinfo_org"], "AS15169 Google LLC")
+        self.assertTrue(cached["cached"])
 
     def test_hex_dump_and_hashing(self):
         """Test format_hex_dump and payload hash calculations."""
@@ -186,26 +172,44 @@ class TestSentinelSharkCore(unittest.TestCase):
     def test_cache_invalidation_when_key_added(self):
         """Test that cache automatically invalidates entries missing IPinfo data when IPinfo API key is set."""
         from app.config import config
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-            db_path = tmp.name
+        cache = ThreatCache(ttl_hours=24)
+        old_data = {"abuse_score": 10, "vt_malicious": 0, "ipinfo_details": {}}
+        cache.set("1.1.1.1", old_data)
+
+        # Case A: IPinfo key NOT configured -> Cache returns record
+        config.ipinfo_api_key = ""
+        self.assertIsNotNone(cache.get("1.1.1.1"))
+
+        # Case B: IPinfo key IS configured -> Incomplete cache returns None (forcing fresh API lookup)
+        config.ipinfo_api_key = "test_key_active"
+        self.assertIsNone(cache.get("1.1.1.1"))
+        config.ipinfo_api_key = ""
+
+    def test_pcap_writer_export(self):
+        """Test native PCAP/PCAPNG file creation."""
+        from app.core.pcapwriter import save_pcap_file
+        with tempfile.NamedTemporaryFile(suffix=".pcapng", delete=False) as tmp:
+            tmp_pcap = tmp.name
 
         try:
-            cache = ThreatCache(db_path=db_path, ttl_hours=24)
-            # Store entry without IPinfo details
-            old_data = {"abuse_score": 10, "vt_malicious": 0, "ipinfo_details": {}}
-            cache.set("1.1.1.1", old_data)
-
-            # Case A: IPinfo key NOT configured -> Cache returns record
-            config.ipinfo_api_key = ""
-            self.assertIsNotNone(cache.get("1.1.1.1"))
-
-            # Case B: IPinfo key IS configured -> Incomplete cache returns None (forcing fresh API lookup)
-            config.ipinfo_api_key = "test_key_active"
-            self.assertIsNone(cache.get("1.1.1.1"))
+            sample_packets = [
+                {
+                    "no": 1,
+                    "time": "12:34:56.789",
+                    "src": "192.168.1.5",
+                    "dst": "8.8.8.8",
+                    "protocol": "DNS",
+                    "length": 54,
+                    "raw_bytes": bytes.fromhex("00112233445566778899aabb08004500003c")
+                }
+            ]
+            success = save_pcap_file(tmp_pcap, sample_packets)
+            self.assertTrue(success)
+            self.assertTrue(os.path.exists(tmp_pcap))
+            self.assertGreater(os.path.getsize(tmp_pcap), 24)
         finally:
-            config.ipinfo_api_key = ""
-            if os.path.exists(db_path):
-                os.remove(db_path)
+            if os.path.exists(tmp_pcap):
+                os.remove(tmp_pcap)
 
 
     def test_sanitize_bpf_filter(self):
