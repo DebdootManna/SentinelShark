@@ -170,12 +170,15 @@ class PacketDetailView(QWidget):
         shodan_details = threat.get("shodan_details")
         shodan_ports = threat.get("shodan_ports", [])
         shodan_vulns = threat.get("shodan_vulns", [])
+        shodan_cpes = threat.get("shodan_cpes", [])
         shodan_status = threat.get("shodan_status")
+        shodan_tier = threat.get("shodan_tier", "")
 
         has_shodan_data = (shodan_details and isinstance(shodan_details, dict) and len(shodan_details) > 0) or shodan_ports or shodan_vulns
 
         if has_shodan_data:
-            shodan_node = QTreeWidgetItem(root_item, ["Shodan Host Intelligence"])
+            node_title = f"Shodan Host Intelligence ({shodan_status})" if shodan_status else "Shodan Host Intelligence"
+            shodan_node = QTreeWidgetItem(root_item, [node_title])
             font_shodan = shodan_node.font(0)
             font_shodan.setBold(True)
             shodan_node.setFont(0, font_shodan)
@@ -192,15 +195,17 @@ class PacketDetailView(QWidget):
                 vuln_item.setForeground(0, QBrush(QColor(248, 113, 113)))
                 for v in shodan_vulns[:10]:
                     QTreeWidgetItem(vuln_item, [str(v)])
+            if shodan_cpes:
+                QTreeWidgetItem(shodan_node, [f"CPE Identifiers: {', '.join(shodan_cpes[:5])}"])
             if threat.get("shodan_tags"):
                 QTreeWidgetItem(shodan_node, [f"Tags: {', '.join(threat.get('shodan_tags'))}"])
             if threat.get("shodan_hostnames"):
                 QTreeWidgetItem(shodan_node, [f"Hostnames: {', '.join(threat.get('shodan_hostnames'))}"])
         else:
-            if not config.shodan_api_key:
-                status_text = "No API Key Configured"
-            elif shodan_status:
+            if shodan_status:
                 status_text = shodan_status
+            elif not config.shodan_api_key:
+                status_text = "InternetDB Mode (No Key)"
             else:
                 status_text = "Lookup In Progress / Pending"
 

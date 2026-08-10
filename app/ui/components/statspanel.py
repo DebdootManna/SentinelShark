@@ -403,7 +403,13 @@ class StatsPanel(QWidget):
         ]:
             key_val = getattr(config, f"{key_name}_api_key", "")
             lbl = widget_dict["state"]
-            if key_val:
+            if key_name == "shodan":
+                if key_val:
+                    lbl.setText("Connected (Host API)")
+                else:
+                    lbl.setText("Connected (InternetDB)")
+                lbl.setStyleSheet("color: #22C55E; font-family: monospace; font-size: 11px;")
+            elif key_val:
                 lbl.setText("Connected")
                 lbl.setStyleSheet("color: #22C55E; font-family: monospace; font-size: 11px;")
             else:

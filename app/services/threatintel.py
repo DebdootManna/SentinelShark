@@ -137,32 +137,82 @@ class ThreatIntelClient:
             print(f"[ThreatIntel] IPinfo error for {ip}: {e}")
         return {}
 
-    async def fetch_shodan(self, client: httpx.AsyncClient, ip: str) -> Dict[str, Any]:
-        """Query Shodan Host API for open ports, OS, vulnerabilities, and host information."""
-        key = config.shodan_api_key
-        if not key:
-            return {"shodan_status": "No API Key Configured"}
+    async def fetch_shodan_internetdb(self, client: httpx.AsyncClient, ip: str) -> Dict[str, Any]:
+        """Query free Shodan InternetDB API (https://internetdb.shodan.io/{ip}) for open ports, CPEs, hostnames, and CVE vulns."""
+        url = f"https://internetdb.shodan.io/{ip}"
+        try:
+            resp = await client.get(url, timeout=self.timeout)
+            if resp.status_code == 404:
+                return {
+                    "shodan_status": "No Public Ports / Unindexed Host",
+                    "shodan_tier": "Free (InternetDB)",
+                    "shodan_ports": [],
+                    "shodan_vulns": []
+                }
+            resp.raise_for_status()
+            data = resp.json()
+            if not isinstance(data, dict):
+                data = {}
 
+            ports = data.get("ports", [])
+            cpes = data.get("cpes", [])
+            hostnames = data.get("hostnames", [])
+            tags = data.get("tags", [])
+            vulns = data.get("vulns", [])
+
+            print(f"[ThreatIntel] Shodan InternetDB Fallback OK for {ip}: {len(ports)} ports, {len(vulns)} vulns")
+            return {
+                "shodan_details": data,
+                "shodan_ports": ports,
+                "shodan_cpes": cpes,
+                "shodan_hostnames": hostnames,
+                "shodan_tags": tags,
+                "shodan_vulns": vulns,
+                "shodan_org": "",
+                "shodan_os": "",
+                "shodan_status": "InternetDB Mode (Free Tier)",
+                "shodan_tier": "Free (InternetDB Fallback)"
+            }
+        except Exception as e:
+            print(f"[ThreatIntel] Shodan InternetDB error for {ip}: {e}")
+            return {
+                "shodan_status": "InternetDB Unavailable",
+                "shodan_tier": "Free (InternetDB)"
+            }
+
+    async def fetch_shodan(self, client: httpx.AsyncClient, ip: str) -> Dict[str, Any]:
+        """Query Shodan Host API with automatic InternetDB fallback on HTTP 403 / Free Tier / IPv6."""
+        key = config.shodan_api_key
         is_v6 = ":" in ip
+
+        # If no key is set or if target is IPv6, route directly to free InternetDB
+        if not key or is_v6:
+            return await self.fetch_shodan_internetdb(client, ip)
+
         url = f"https://api.shodan.io/shodan/host/{ip}"
         params = {"key": key}
 
         try:
             resp = await client.get(url, params=params, timeout=self.timeout)
-            if resp.status_code == 401:
-                print(f"[ThreatIntel] Shodan HTTP 401 (Invalid API Key) for {ip}")
-                return {"shodan_status": "Invalid API Key (HTTP 401)"}
-            if resp.status_code == 403:
-                status_msg = "IPv6 Host Query Requires Paid Shodan Plan (HTTP 403)" if is_v6 else "Access Forbidden / Key Restricted (HTTP 403)"
-                print(f"[ThreatIntel] Shodan HTTP 403 for {ip} ({status_msg})")
-                return {"shodan_status": status_msg}
+            
+            # 403 Forbidden / 401 Key restriction -> Fallback to InternetDB
+            if resp.status_code in (401, 403):
+                print(f"[ThreatIntel] Shodan Host API HTTP {resp.status_code} for {ip}. Falling back to InternetDB...")
+                fallback_data = await self.fetch_shodan_internetdb(client, ip)
+                if resp.status_code == 401 and fallback_data.get("shodan_status") == "InternetDB Mode (Free Tier)":
+                    fallback_data["shodan_status"] = "Invalid Key (InternetDB Fallback)"
+                return fallback_data
+
             if resp.status_code == 429:
-                print(f"[ThreatIntel] Shodan HTTP 429 (Rate Limit Exceeded) for {ip}")
-                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded", "shodan_status": "Rate Limit Exceeded (HTTP 429)"}
+                print(f"[ThreatIntel] Shodan HTTP 429 Rate Limit for {ip}. Falling back to InternetDB...")
+                fallback_data = await self.fetch_shodan_internetdb(client, ip)
+                fallback_data["error_code"] = 429
+                return fallback_data
+
             if resp.status_code == 404:
-                status_msg = "IPv6 Host Not Indexed in Shodan" if is_v6 else "Host Not Found in Shodan Index"
-                print(f"[ThreatIntel] Shodan HTTP 404 for {ip} ({status_msg})")
-                return {"shodan_status": status_msg}
+                print(f"[ThreatIntel] Shodan Host API HTTP 404 for {ip}. Checking InternetDB...")
+                return await self.fetch_shodan_internetdb(client, ip)
+
             resp.raise_for_status()
             data = resp.json()
             if not isinstance(data, dict):
@@ -176,7 +226,7 @@ class ThreatIntelClient:
             else:
                 vulns_list = []
 
-            print(f"[ThreatIntel] Shodan HTTP 200 OK for {ip}: {len(data.get('ports', []))} ports, {len(vulns_list)} vulns")
+            print(f"[ThreatIntel] Shodan Host API 200 OK for {ip}: {len(data.get('ports', []))} ports, {len(vulns_list)} vulns")
             return {
                 "shodan_details": data,
                 "shodan_ports": data.get("ports", []),
@@ -186,29 +236,15 @@ class ThreatIntelClient:
                 "shodan_tags": data.get("tags", []),
                 "shodan_vulns": vulns_list,
                 "shodan_country": data.get("country_code") or "",
-                "shodan_status": "OK"
+                "shodan_status": "Standard Host API (Paid Tier)",
+                "shodan_tier": "Premium (Standard Host API)"
             }
         except httpx.HTTPStatusError as e:
-            code = e.response.status_code
-            if code == 401:
-                print(f"[ThreatIntel] Shodan HTTP 401 (Invalid API Key) for {ip}")
-                return {"shodan_status": "Invalid API Key (HTTP 401)"}
-            if code == 403:
-                status_msg = "IPv6 Host Query Requires Paid Shodan Plan (HTTP 403)" if is_v6 else "Access Forbidden / Key Restricted (HTTP 403)"
-                print(f"[ThreatIntel] Shodan HTTP 403 for {ip} ({status_msg})")
-                return {"shodan_status": status_msg}
-            if code == 429:
-                print(f"[ThreatIntel] Shodan HTTP 429 (Rate Limit Exceeded) for {ip}")
-                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded", "shodan_status": "Rate Limit Exceeded (HTTP 429)"}
-            if code == 404:
-                status_msg = "IPv6 Host Not Indexed in Shodan" if is_v6 else "Host Not Found in Shodan Index"
-                print(f"[ThreatIntel] Shodan HTTP 404 for {ip} ({status_msg})")
-                return {"shodan_status": status_msg}
-            print(f"[ThreatIntel] Shodan HTTP Error {code} for {ip}: {e}")
-            return {"shodan_status": f"HTTP Error {code}"}
+            print(f"[ThreatIntel] Shodan Host API error for {ip}: {e}. Falling back to InternetDB...")
+            return await self.fetch_shodan_internetdb(client, ip)
         except Exception as e:
-            print(f"[ThreatIntel] Shodan error for {ip}: {e}")
-            return {"shodan_status": f"Lookup Error: {e}"}
+            print(f"[ThreatIntel] Shodan error for {ip}: {e}. Falling back to InternetDB...")
+            return await self.fetch_shodan_internetdb(client, ip)
 
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
         """
