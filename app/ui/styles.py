@@ -241,12 +241,19 @@ QTextEdit, QPlainTextEdit {
 /* Splitter Handles */
 QSplitter::handle {
     background-color: #1E293B;
-    height: 3px;
-    width: 3px;
+    border-radius: 2px;
 }
 
 QSplitter::handle:hover {
     background-color: #22D3EE;
+}
+
+QSplitter::handle:horizontal {
+    width: 6px;
+}
+
+QSplitter::handle:vertical {
+    height: 6px;
 }
 
 /* Status Bar */

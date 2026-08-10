@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QToolBar,
     QComboBox, QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox,
     QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QCheckBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QScrollArea, QFrame
 )
 
 from app.config import config, CONFIG_PATH
@@ -379,21 +380,46 @@ class MainWindow(QMainWindow):
 
         # Vertical Splitter (Top: Table + Stats, Bottom: Inspector + Hex)
         self.v_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.v_splitter.setHandleWidth(8)
+        self.v_splitter.setChildrenCollapsible(False)
 
         # Top Horizontal Splitter (Packet Table + Stats Panel)
         self.top_h_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.top_h_splitter.setHandleWidth(6)
+        self.top_h_splitter.setChildrenCollapsible(False)
+
         self.packet_table = PacketTable()
         self.stats_panel = StatsPanel()
-        
+
+        # Wrap StatsPanel in a QScrollArea so it can shrink vertically without locking the top splitter pane
+        self.stats_scroll = QScrollArea()
+        self.stats_scroll.setWidgetResizable(True)
+        self.stats_scroll.setWidget(self.stats_panel)
+        self.stats_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.stats_scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
+
+        # Allow panes to shrink comfortably
+        self.packet_table.setMinimumHeight(80)
+        self.stats_panel.setMinimumHeight(80)
+        self.top_h_splitter.setMinimumHeight(100)
+
         self.top_h_splitter.addWidget(self.packet_table)
-        self.top_h_splitter.addWidget(self.stats_panel)
+        self.top_h_splitter.addWidget(self.stats_scroll)
         self.top_h_splitter.setStretchFactor(0, 4)
         self.top_h_splitter.setStretchFactor(1, 1)
 
         # Bottom Horizontal Splitter (Detail Tree + Hex View)
         self.bot_h_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.bot_h_splitter.setHandleWidth(6)
+        self.bot_h_splitter.setChildrenCollapsible(False)
+
         self.packet_detail = PacketDetailView()
         self.hex_view = HexView()
+
+        self.packet_detail.setMinimumHeight(80)
+        self.hex_view.setMinimumHeight(80)
+        self.bot_h_splitter.setMinimumHeight(100)
 
         self.bot_h_splitter.addWidget(self.packet_detail)
         self.bot_h_splitter.addWidget(self.hex_view)
@@ -402,8 +428,11 @@ class MainWindow(QMainWindow):
 
         self.v_splitter.addWidget(self.top_h_splitter)
         self.v_splitter.addWidget(self.bot_h_splitter)
-        self.v_splitter.setStretchFactor(0, 3)
-        self.v_splitter.setStretchFactor(1, 2)
+
+        # Give 50/50 vertical split by default so Packet Details has plenty of room
+        self.v_splitter.setStretchFactor(0, 1)
+        self.v_splitter.setStretchFactor(1, 1)
+        self.v_splitter.setSizes([400, 450])
 
         main_layout.addWidget(self.v_splitter)
 
