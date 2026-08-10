@@ -315,7 +315,8 @@ QGroupBox {
     background-color: #131C2B;
     border: 1px solid #1E293B;
     border-radius: 10px;
-    margin-top: 12px;
+    margin-top: 16px;
+    padding-top: 20px;
     font-weight: 700;
     color: #22D3EE;
     font-family: "JetBrains Mono", monospace;
@@ -326,7 +327,9 @@ QGroupBox {
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 0 8px;
+    left: 12px;
+    top: 0px;
+    padding: 0 6px;
 }
 
 /* Progress Bar */

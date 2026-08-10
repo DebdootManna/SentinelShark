@@ -448,17 +448,20 @@ class LiveCaptureThread(QThread):
             time.sleep(random.uniform(0.015, 0.035))
 
     def stop(self):
-        """Stop packet capture thread cleanly."""
+        """Stop packet capture thread cleanly without blocking the main GUI thread."""
         self.is_running = False
         if self._capture_proc:
             try:
-                self._capture_proc.terminate()
-                self._capture_proc.wait(timeout=0.5)
+                self._capture_proc.kill()
             except Exception:
                 pass
+            self._capture_proc = None
+
         if self._pyshark_capture:
             try:
                 self._pyshark_capture.close()
             except Exception:
                 pass
-        self.wait(1000)
+            self._pyshark_capture = None
+
+        self.quit()

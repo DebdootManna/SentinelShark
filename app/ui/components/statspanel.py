@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QGroupBox, QProgressBar, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QGroupBox, QProgressBar, QFrame, QPushButton, QSizePolicy
 )
 from app.config import config
 
@@ -30,6 +30,7 @@ class StatCard(QFrame):
     def __init__(self, title: str, initial_value: str = "0", accent_color: str = "#22D3EE", parent=None):
         super().__init__(parent)
         self.accent_color = accent_color
+        self.setMinimumSize(130, 58)
         self.setStyleSheet("""
             QFrame {
                 background-color: #131C2B;
@@ -72,6 +73,97 @@ class StatCard(QFrame):
         self.value_lbl.setText(val)
 
 
+class CollapsibleCard(QFrame):
+    """
+    A sleek, modern Figma-inspired card container with a header bar,
+    title label, collapse/expand toggle button, and inner content layout.
+    """
+
+    def __init__(self, title: str, expanded_min_height: int = 140, parent=None):
+        super().__init__(parent)
+        self.is_collapsed = False
+        self.expanded_min_height = expanded_min_height
+        self.setObjectName("CollapsibleCard")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setMinimumHeight(self.expanded_min_height)
+        self.setStyleSheet("""
+            QFrame#CollapsibleCard {
+                background-color: #131C2B;
+                border: 1px solid #1E293B;
+                border-radius: 12px;
+            }
+        """)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(14, 12, 14, 12)
+        main_layout.setSpacing(8)
+
+        # Header bar
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.title_lbl = QLabel(title)
+        self.title_lbl.setStyleSheet("""
+            color: #22D3EE;
+            font-weight: 700;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: transparent;
+            border: none;
+        """)
+
+        self.toggle_btn = QPushButton("−")
+        self.toggle_btn.setFixedSize(22, 22)
+        self.toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.toggle_btn.setToolTip("Collapse / Expand Section")
+        self.toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(30, 41, 59, 0.6);
+                border: 1px solid #1E293B;
+                color: #94A3B8;
+                border-radius: 6px;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #1E293B;
+                color: #22D3EE;
+                border-color: #38BDF8;
+            }
+        """)
+        self.toggle_btn.clicked.connect(self.toggle_collapse)
+
+        header_layout.addWidget(self.title_lbl)
+        header_layout.addStretch()
+        header_layout.addWidget(self.toggle_btn)
+        main_layout.addLayout(header_layout)
+
+        # Content container
+        self.content_widget = QWidget()
+        self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 4, 0, 0)
+        self.content_layout.setSpacing(8)
+
+        main_layout.addWidget(self.content_widget)
+
+    def toggle_collapse(self):
+        self.is_collapsed = not self.is_collapsed
+        self.content_widget.setVisible(not self.is_collapsed)
+        self.toggle_btn.setText("+" if self.is_collapsed else "−")
+        if self.is_collapsed:
+            self.setFixedHeight(44)
+        else:
+            self.setMinimumHeight(self.expanded_min_height)
+            self.setMaximumHeight(16777215)
+
+    def set_title(self, new_title: str):
+        self.title_lbl.setText(new_title)
+
+
 class StatsPanel(QWidget):
     """
     Live NIDS Statistics Panel matching Redesigned UI.
@@ -90,18 +182,18 @@ class StatsPanel(QWidget):
         self.selected_pkt: Optional[Dict[str, Any]] = None
         self.proto_row_widgets: Dict[str, dict] = {}
 
-        self.setMinimumWidth(300)
-        self.setMinimumHeight(520)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.init_ui()
+        self.setMinimumSize(320, 600)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(14)
 
         # 1. Metric Cards 2x2 Grid
         grid = QGridLayout()
-        grid.setSpacing(8)
+        grid.setSpacing(10)
 
         self.card_packets = StatCard("TOTAL PACKETS", "0", "#22D3EE")
         self.card_bytes = StatCard("DATA TRAFFIC", "0.0 KB", "#2DD4BF")
@@ -116,28 +208,9 @@ class StatsPanel(QWidget):
         layout.addLayout(grid)
 
         # 2. Protocol Breakdown Panel
-        proto_box = QGroupBox("PROTOCOL BREAKDOWN")
-        proto_box.setStyleSheet("""
-            QGroupBox {
-                background-color: #131C2B;
-                border: 1px solid #1E293B;
-                border-radius: 10px;
-                margin-top: 6px;
-                padding-top: 18px;
-            }
-            QGroupBox::title {
-                color: #22D3EE;
-                font-weight: 700;
-                font-size: 11px;
-                font-family: 'JetBrains Mono', monospace;
-                subcontrol-origin: margin;
-                left: 12px;
-                top: 2px;
-            }
-        """)
-        self.proto_layout = QVBoxLayout(proto_box)
-        self.proto_layout.setContentsMargins(12, 10, 12, 12)
-        self.proto_layout.setSpacing(6)
+        self.proto_card = CollapsibleCard("PROTOCOL BREAKDOWN", expanded_min_height=170)
+        self.proto_layout = self.proto_card.content_layout
+        self.proto_layout.setSpacing(8)
 
         self.proto_empty_lbl = QLabel("No protocol data recorded")
         self.proto_empty_lbl.setStyleSheet("color: #94A3B8; font-family: monospace; font-size: 11px;")
@@ -147,7 +220,7 @@ class StatsPanel(QWidget):
         for proto in TRACKED_PROTOCOLS:
             row_container = QWidget()
             row_layout = QHBoxLayout(row_container)
-            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setContentsMargins(0, 2, 0, 2)
             row_layout.setSpacing(8)
 
             lbl_proto = QLabel(proto)
@@ -158,17 +231,17 @@ class StatsPanel(QWidget):
             bar.setRange(0, 100)
             bar.setValue(0)
             bar.setTextVisible(False)
-            bar.setFixedHeight(4)
+            bar.setFixedHeight(6)
             color = PROTO_COLORS.get(proto, "#94A3B8")
             bar.setStyleSheet(f"""
                 QProgressBar {{
                     background-color: #1E293B;
                     border: none;
-                    border-radius: 2px;
+                    border-radius: 3px;
                 }}
                 QProgressBar::chunk {{
                     background-color: {color};
-                    border-radius: 2px;
+                    border-radius: 3px;
                 }}
             """)
 
@@ -189,31 +262,12 @@ class StatsPanel(QWidget):
                 "count": lbl_count
             }
 
-        layout.addWidget(proto_box)
+        layout.addWidget(self.proto_card)
 
         # 3. Threat Intel API Queue Panel (VirusTotal, AbuseIPDB, Shodan, IPinfo)
-        queue_box = QGroupBox("THREAT INTEL API QUEUE")
-        queue_box.setStyleSheet("""
-            QGroupBox {
-                background-color: #131C2B;
-                border: 1px solid #1E293B;
-                border-radius: 10px;
-                margin-top: 6px;
-                padding-top: 18px;
-            }
-            QGroupBox::title {
-                color: #22D3EE;
-                font-weight: 700;
-                font-size: 11px;
-                font-family: 'JetBrains Mono', monospace;
-                subcontrol-origin: margin;
-                left: 12px;
-                top: 2px;
-            }
-        """)
-        queue_layout = QVBoxLayout(queue_box)
-        queue_layout.setContentsMargins(12, 10, 12, 12)
-        queue_layout.setSpacing(6)
+        self.queue_card = CollapsibleCard("THREAT INTEL API QUEUE", expanded_min_height=190)
+        queue_layout = self.queue_card.content_layout
+        queue_layout.setSpacing(8)
 
         # API Items
         self.vt_status = self._create_api_status_row("VirusTotal", config.virustotal_api_key)
@@ -228,6 +282,7 @@ class StatsPanel(QWidget):
 
         # Queue Progress
         q_header = QHBoxLayout()
+        q_header.setContentsMargins(0, 4, 0, 0)
         q_label = QLabel("Queue Processing")
         q_label.setStyleSheet("color: #94A3B8; font-size: 11px;")
         self.queue_counter_lbl = QLabel("0 / 0")
@@ -241,34 +296,15 @@ class StatsPanel(QWidget):
         self.queue_bar.setRange(0, 100)
         self.queue_bar.setValue(0)
         self.queue_bar.setTextVisible(False)
-        self.queue_bar.setFixedHeight(4)
+        self.queue_bar.setFixedHeight(5)
         queue_layout.addWidget(self.queue_bar)
 
-        layout.addWidget(queue_box)
+        layout.addWidget(self.queue_card)
 
         # 4. Selected Packet Summary Card
-        self.pkt_box = QGroupBox("SELECTED PACKET")
-        self.pkt_box.setStyleSheet("""
-            QGroupBox {
-                background-color: #131C2B;
-                border: 1px solid #1E293B;
-                border-radius: 10px;
-                margin-top: 6px;
-                padding-top: 18px;
-            }
-            QGroupBox::title {
-                color: #22D3EE;
-                font-weight: 700;
-                font-size: 11px;
-                font-family: 'JetBrains Mono', monospace;
-                subcontrol-origin: margin;
-                left: 12px;
-                top: 2px;
-            }
-        """)
-        self.pkt_layout = QVBoxLayout(self.pkt_box)
-        self.pkt_layout.setContentsMargins(12, 10, 12, 12)
-        self.pkt_layout.setSpacing(4)
+        self.pkt_card = CollapsibleCard("SELECTED PACKET", expanded_min_height=140)
+        self.pkt_layout = self.pkt_card.content_layout
+        self.pkt_layout.setSpacing(6)
 
         self.pkt_empty_lbl = QLabel("No packet selected")
         self.pkt_empty_lbl.setStyleSheet("color: #94A3B8; font-family: monospace; font-size: 11px;")
@@ -279,7 +315,7 @@ class StatsPanel(QWidget):
         for key_label, dict_key in [("Protocol", "proto"), ("Source", "src"), ("Dest", "dst"), ("Size", "size")]:
             container = QWidget()
             row = QHBoxLayout(container)
-            row.setContentsMargins(0, 0, 0, 0)
+            row.setContentsMargins(0, 2, 0, 2)
             row.setSpacing(8)
 
             lbl_k = QLabel(key_label)
@@ -301,13 +337,14 @@ class StatsPanel(QWidget):
                 "val": lbl_v
             }
 
-        layout.addWidget(self.pkt_box)
+        layout.addWidget(self.pkt_card)
         layout.addStretch()
 
     def _create_api_status_row(self, name: str, key_val: str) -> dict:
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 2, 0, 2)
         lbl_name = QLabel(name)
-        lbl_name.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        lbl_name.setStyleSheet("color: #94A3B8; font-size: 11px;")
 
         lbl_state = QLabel()
         lbl_state.setStyleSheet("font-family: monospace; font-size: 11px;")
@@ -422,14 +459,14 @@ class StatsPanel(QWidget):
         """Display summary card details for selected packet matching Redesigned UI."""
         self.selected_pkt = pkt
         if not pkt:
-            self.pkt_box.setTitle("SELECTED PACKET")
+            self.pkt_card.set_title("SELECTED PACKET")
             self.pkt_empty_lbl.setVisible(True)
             for w in self.pkt_detail_widgets.values():
                 w["container"].setVisible(False)
             return
 
         no = pkt.get("no", "")
-        self.pkt_box.setTitle(f"SELECTED: PACKET #{no}")
+        self.pkt_card.set_title(f"SELECTED: PACKET #{no}")
         self.pkt_empty_lbl.setVisible(False)
 
         self.pkt_detail_widgets["proto"]["val"].setText(str(pkt.get("protocol", "N/A")))
