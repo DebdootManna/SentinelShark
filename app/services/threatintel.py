@@ -79,6 +79,8 @@ class ThreatIntelClient:
             resp = await client.get(url, headers=headers, timeout=self.timeout)
             if resp.status_code == 429:
                 return {"error_code": 429, "msg": "VirusTotal Rate Limit Exceeded"}
+            if resp.status_code == 404:
+                return {"vt_malicious": 0, "vt_suspicious": 0, "vt_harmless": 0}
             resp.raise_for_status()
             attributes = resp.json().get("data", {}).get("attributes", {})
             stats = attributes.get("last_analysis_stats", {})
@@ -90,7 +92,9 @@ class ThreatIntelClient:
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
                 return {"error_code": 429, "msg": "VirusTotal Rate Limit Exceeded"}
-            print(f"[ThreatIntel] VirusTotal HTTP Error for {ip}: {e}")
+            if e.response.status_code == 404:
+                return {"vt_malicious": 0, "vt_suspicious": 0, "vt_harmless": 0}
+            print(f"[ThreatIntel] VirusTotal HTTP Error {e.response.status_code} for {ip}")
         except Exception as e:
             print(f"[ThreatIntel] VirusTotal error for {ip}: {e}")
         return {}
@@ -128,7 +132,7 @@ class ThreatIntelClient:
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 429:
                 return {"error_code": 429, "msg": "IPinfo Rate Limit Exceeded"}
-            print(f"[ThreatIntel] IPinfo HTTP Error for {ip}: {e}")
+            print(f"[ThreatIntel] IPinfo HTTP Error {e.response.status_code} for {ip}")
         except Exception as e:
             print(f"[ThreatIntel] IPinfo error for {ip}: {e}")
         return {}
@@ -137,17 +141,28 @@ class ThreatIntelClient:
         """Query Shodan Host API for open ports, OS, vulnerabilities, and host information."""
         key = config.shodan_api_key
         if not key:
-            return {}
+            return {"shodan_status": "No API Key Configured"}
 
+        is_v6 = ":" in ip
         url = f"https://api.shodan.io/shodan/host/{ip}"
         params = {"key": key}
 
         try:
             resp = await client.get(url, params=params, timeout=self.timeout)
+            if resp.status_code == 401:
+                print(f"[ThreatIntel] Shodan HTTP 401 (Invalid API Key) for {ip}")
+                return {"shodan_status": "Invalid API Key (HTTP 401)"}
+            if resp.status_code == 403:
+                status_msg = "IPv6 Host Query Requires Paid Shodan Plan (HTTP 403)" if is_v6 else "Access Forbidden / Key Restricted (HTTP 403)"
+                print(f"[ThreatIntel] Shodan HTTP 403 for {ip} ({status_msg})")
+                return {"shodan_status": status_msg}
             if resp.status_code == 429:
-                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded"}
+                print(f"[ThreatIntel] Shodan HTTP 429 (Rate Limit Exceeded) for {ip}")
+                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded", "shodan_status": "Rate Limit Exceeded (HTTP 429)"}
             if resp.status_code == 404:
-                return {}
+                status_msg = "IPv6 Host Not Indexed in Shodan" if is_v6 else "Host Not Found in Shodan Index"
+                print(f"[ThreatIntel] Shodan HTTP 404 for {ip} ({status_msg})")
+                return {"shodan_status": status_msg}
             resp.raise_for_status()
             data = resp.json()
             if not isinstance(data, dict):
@@ -161,6 +176,7 @@ class ThreatIntelClient:
             else:
                 vulns_list = []
 
+            print(f"[ThreatIntel] Shodan HTTP 200 OK for {ip}: {len(data.get('ports', []))} ports, {len(vulns_list)} vulns")
             return {
                 "shodan_details": data,
                 "shodan_ports": data.get("ports", []),
@@ -169,16 +185,30 @@ class ThreatIntelClient:
                 "shodan_hostnames": data.get("hostnames", []),
                 "shodan_tags": data.get("tags", []),
                 "shodan_vulns": vulns_list,
-                "shodan_country": data.get("country_code") or ""
+                "shodan_country": data.get("country_code") or "",
+                "shodan_status": "OK"
             }
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded"}
-            if e.response.status_code != 404:
-                print(f"[ThreatIntel] Shodan HTTP Error for {ip}: {e}")
+            code = e.response.status_code
+            if code == 401:
+                print(f"[ThreatIntel] Shodan HTTP 401 (Invalid API Key) for {ip}")
+                return {"shodan_status": "Invalid API Key (HTTP 401)"}
+            if code == 403:
+                status_msg = "IPv6 Host Query Requires Paid Shodan Plan (HTTP 403)" if is_v6 else "Access Forbidden / Key Restricted (HTTP 403)"
+                print(f"[ThreatIntel] Shodan HTTP 403 for {ip} ({status_msg})")
+                return {"shodan_status": status_msg}
+            if code == 429:
+                print(f"[ThreatIntel] Shodan HTTP 429 (Rate Limit Exceeded) for {ip}")
+                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded", "shodan_status": "Rate Limit Exceeded (HTTP 429)"}
+            if code == 404:
+                status_msg = "IPv6 Host Not Indexed in Shodan" if is_v6 else "Host Not Found in Shodan Index"
+                print(f"[ThreatIntel] Shodan HTTP 404 for {ip} ({status_msg})")
+                return {"shodan_status": status_msg}
+            print(f"[ThreatIntel] Shodan HTTP Error {code} for {ip}: {e}")
+            return {"shodan_status": f"HTTP Error {code}"}
         except Exception as e:
             print(f"[ThreatIntel] Shodan error for {ip}: {e}")
-        return {}
+            return {"shodan_status": f"Lookup Error: {e}"}
 
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
         """
@@ -199,7 +229,8 @@ class ThreatIntelClient:
                 "ipinfo_details": {},
                 "shodan_details": {},
                 "shodan_ports": [],
-                "shodan_vulns": []
+                "shodan_vulns": [],
+                "shodan_status": "Non-Routable Private IP"
             }
 
         result = {

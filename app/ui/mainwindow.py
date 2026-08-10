@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from app.config import config, CONFIG_PATH
 from app.core.capture import LiveCaptureThread, get_available_interfaces
 from app.services.queuemanager import queue_manager
+from app.services.threatintel import is_public_ip
 from app.core.cache import cache
 from app.ui.styles import DARK_THEME_QSS
 from app.ui.components.packettable import PacketTable
@@ -478,6 +479,19 @@ class MainWindow(QMainWindow):
     @pyqtSlot(dict)
     def on_packet_selected(self, pkt: dict):
         """Update detail tree, hex dump view, and right sidebar stats panel when a packet row is clicked."""
+        if pkt:
+            dst_ip = pkt.get("dst", "")
+            src_ip = pkt.get("src", "")
+
+            # Check cache or enqueue for public IPs
+            for ip in (dst_ip, src_ip):
+                if is_public_ip(ip):
+                    cached_data = cache.get(ip)
+                    if cached_data:
+                        pkt["threat_data"] = cached_data
+                    else:
+                        queue_manager.enqueue_ip(ip)
+
         self.packet_detail.display_packet(pkt)
         self.hex_view.display_packet(pkt)
         self.stats_panel.set_selected_packet(pkt)
@@ -487,6 +501,17 @@ class MainWindow(QMainWindow):
         """Update threat color coding and stats when Threat Intel queue resolves an IP."""
         self.packet_table.update_threat_intel(ip, threat_data)
         self.stats_panel.update_threat_stats(threat_data)
+
+        # Automatically refresh packet details and sidebar if the currently selected packet matches resolved IP
+        selected_indexes = self.packet_table.selectedIndexes()
+        if selected_indexes:
+            row = selected_indexes[0].row()
+            if 0 <= row < len(self.packet_table.packets):
+                selected_pkt = self.packet_table.packets[row]
+                if selected_pkt.get("src") == ip or selected_pkt.get("dst") == ip:
+                    selected_pkt["threat_data"] = threat_data
+                    self.packet_detail.display_packet(selected_pkt)
+                    self.stats_panel.set_selected_packet(selected_pkt)
 
     def start_capture(self, pcap_file: str = ""):
         """Start live packet capture or PCAP file reading thread."""

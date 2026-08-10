@@ -170,7 +170,11 @@ class PacketDetailView(QWidget):
         shodan_details = threat.get("shodan_details")
         shodan_ports = threat.get("shodan_ports", [])
         shodan_vulns = threat.get("shodan_vulns", [])
-        if (shodan_details and isinstance(shodan_details, dict) and len(shodan_details) > 0) or shodan_ports or shodan_vulns:
+        shodan_status = threat.get("shodan_status")
+
+        has_shodan_data = (shodan_details and isinstance(shodan_details, dict) and len(shodan_details) > 0) or shodan_ports or shodan_vulns
+
+        if has_shodan_data:
             shodan_node = QTreeWidgetItem(root_item, ["Shodan Host Intelligence"])
             font_shodan = shodan_node.font(0)
             font_shodan.setBold(True)
@@ -193,6 +197,12 @@ class PacketDetailView(QWidget):
             if threat.get("shodan_hostnames"):
                 QTreeWidgetItem(shodan_node, [f"Hostnames: {', '.join(threat.get('shodan_hostnames'))}"])
         else:
-            status_text = "No API Key Configured" if not config.shodan_api_key else "No Data / Pending Lookup"
+            if not config.shodan_api_key:
+                status_text = "No API Key Configured"
+            elif shodan_status:
+                status_text = shodan_status
+            else:
+                status_text = "Lookup In Progress / Pending"
+
             shodan_node = QTreeWidgetItem(root_item, [f"Shodan Details: ({status_text})"])
             shodan_node.setForeground(0, QBrush(QColor(148, 163, 184)))
