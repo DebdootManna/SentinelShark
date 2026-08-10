@@ -68,6 +68,7 @@ class Config:
         self.abuseipdb_api_key = ""
         self.virustotal_api_key = ""
         self.ipinfo_api_key = ""
+        self.shodan_api_key = ""
         self.cache_ttl_hours = 24
         self.max_requests_per_minute = 30
         self.tshark_path = ""
@@ -98,7 +99,8 @@ class Config:
                     legacy_abuse = json_data.get("abuseipdb_api_key")
                     legacy_vt = json_data.get("virustotal_api_key")
                     legacy_ipinfo = json_data.get("ipinfo_api_key")
-                    if legacy_abuse or legacy_vt or legacy_ipinfo:
+                    legacy_shodan = json_data.get("shodan_api_key")
+                    if legacy_abuse or legacy_vt or legacy_ipinfo or legacy_shodan:
                         needs_sanitization = True
                         if legacy_abuse and not self.abuseipdb_api_key:
                             self.abuseipdb_api_key = legacy_abuse
@@ -106,6 +108,8 @@ class Config:
                             self.virustotal_api_key = legacy_vt
                         if legacy_ipinfo and not self.ipinfo_api_key:
                             self.ipinfo_api_key = legacy_ipinfo
+                        if legacy_shodan and not self.shodan_api_key:
+                            self.shodan_api_key = legacy_shodan
             except Exception as e:
                 print(f"[Config] Warning: Failed to parse {self.config_file}: {e}")
 
@@ -124,6 +128,11 @@ class Config:
             os.getenv("IPINFO_API_KEY")
             or env_vars.get("IPINFO_API_KEY")
             or self.ipinfo_api_key
+        )
+        self.shodan_api_key = (
+            os.getenv("SHODAN_API_KEY")
+            or env_vars.get("SHODAN_API_KEY")
+            or self.shodan_api_key
         )
 
         # Local Machine Settings (stored exclusively in .env so config.json remains un-mutated in git)
@@ -182,6 +191,7 @@ class Config:
                 "ABUSEIPDB_API_KEY": self.abuseipdb_api_key,
                 "VIRUSTOTAL_API_KEY": self.virustotal_api_key,
                 "IPINFO_API_KEY": self.ipinfo_api_key,
+                "SHODAN_API_KEY": self.shodan_api_key,
                 "DEFAULT_INTERFACE": self.default_interface,
                 "MOCK_MODE": "true" if self.mock_mode else "false",
                 "AUTO_SCROLL": "true" if self.auto_scroll else "false",
@@ -193,6 +203,7 @@ class Config:
         os.environ["ABUSEIPDB_API_KEY"] = self.abuseipdb_api_key
         os.environ["VIRUSTOTAL_API_KEY"] = self.virustotal_api_key
         os.environ["IPINFO_API_KEY"] = self.ipinfo_api_key
+        os.environ["SHODAN_API_KEY"] = self.shodan_api_key
         os.environ["DEFAULT_INTERFACE"] = self.default_interface
         os.environ["MOCK_MODE"] = "true" if self.mock_mode else "false"
         os.environ["AUTO_SCROLL"] = "true" if self.auto_scroll else "false"

@@ -133,9 +133,56 @@ class ThreatIntelClient:
             print(f"[ThreatIntel] IPinfo error for {ip}: {e}")
         return {}
 
+    async def fetch_shodan(self, client: httpx.AsyncClient, ip: str) -> Dict[str, Any]:
+        """Query Shodan Host API for open ports, OS, vulnerabilities, and host information."""
+        key = config.shodan_api_key
+        if not key:
+            return {}
+
+        url = f"https://api.shodan.io/shodan/host/{ip}"
+        params = {"key": key}
+
+        try:
+            resp = await client.get(url, params=params, timeout=self.timeout)
+            if resp.status_code == 429:
+                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded"}
+            if resp.status_code == 404:
+                return {}
+            resp.raise_for_status()
+            data = resp.json()
+            if not isinstance(data, dict):
+                data = {}
+
+            vulns = data.get("vulns", [])
+            if isinstance(vulns, dict):
+                vulns_list = list(vulns.keys())
+            elif isinstance(vulns, list):
+                vulns_list = vulns
+            else:
+                vulns_list = []
+
+            return {
+                "shodan_details": data,
+                "shodan_ports": data.get("ports", []),
+                "shodan_org": data.get("org") or "",
+                "shodan_os": data.get("os") or "",
+                "shodan_hostnames": data.get("hostnames", []),
+                "shodan_tags": data.get("tags", []),
+                "shodan_vulns": vulns_list,
+                "shodan_country": data.get("country_code") or ""
+            }
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                return {"error_code": 429, "msg": "Shodan Rate Limit Exceeded"}
+            if e.response.status_code != 404:
+                print(f"[ThreatIntel] Shodan HTTP Error for {ip}: {e}")
+        except Exception as e:
+            print(f"[ThreatIntel] Shodan error for {ip}: {e}")
+        return {}
+
     async def lookup_ip(self, ip: str) -> Dict[str, Any]:
         """
-        Enrich a public IP address using AbuseIPDB, VirusTotal & IPinfo APIs.
+        Enrich a public IP address using AbuseIPDB, VirusTotal, IPinfo & Shodan APIs.
         Returns an aggregated threat & geolocation dictionary.
         """
         if not is_public_ip(ip):
@@ -149,7 +196,10 @@ class ThreatIntelClient:
                 "reports_count": 0,
                 "domain": "Internal/Non-routable",
                 "is_public": False,
-                "ipinfo_details": {}
+                "ipinfo_details": {},
+                "shodan_details": {},
+                "shodan_ports": [],
+                "shodan_vulns": []
             }
 
         result = {
@@ -163,7 +213,10 @@ class ThreatIntelClient:
             "domain": "",
             "is_public": True,
             "has_429": False,
-            "ipinfo_details": {}
+            "ipinfo_details": {},
+            "shodan_details": {},
+            "shodan_ports": [],
+            "shodan_vulns": []
         }
 
         async with httpx.AsyncClient() as client:
@@ -185,13 +238,28 @@ class ThreatIntelClient:
             else:
                 result.update(ipinfo_data)
 
+            shodan_data = await self.fetch_shodan(client, ip)
+            if shodan_data.get("error_code") == 429:
+                result["has_429"] = True
+            else:
+                result.update(shodan_data)
+
         # Fallback country or domain if not populated by AbuseIPDB
-        if not result.get("country") and result.get("ipinfo_country"):
-            result["country"] = result["ipinfo_country"]
-        if not result.get("domain") and result.get("ipinfo_hostname"):
-            result["domain"] = result["ipinfo_hostname"]
-        elif not result.get("domain") and result.get("ipinfo_org"):
-            result["domain"] = result["ipinfo_org"]
+        if not result.get("country"):
+            if result.get("shodan_country"):
+                result["country"] = result["shodan_country"]
+            elif result.get("ipinfo_country"):
+                result["country"] = result["ipinfo_country"]
+
+        if not result.get("domain"):
+            if result.get("shodan_hostnames"):
+                result["domain"] = result["shodan_hostnames"][0]
+            elif result.get("shodan_org"):
+                result["domain"] = result["shodan_org"]
+            elif result.get("ipinfo_hostname"):
+                result["domain"] = result["ipinfo_hostname"]
+            elif result.get("ipinfo_org"):
+                result["domain"] = result["ipinfo_org"]
 
         return result
 

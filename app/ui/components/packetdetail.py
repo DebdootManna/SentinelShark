@@ -165,3 +165,34 @@ class PacketDetailView(QWidget):
             status_text = "No API Key Configured" if not config.ipinfo_api_key else "No Data / Pending Lookup"
             ipinfo_node = QTreeWidgetItem(root_item, [f"IPinfo Details: ({status_text})"])
             ipinfo_node.setForeground(0, QBrush(QColor(148, 163, 184)))
+
+        # Shodan Detailed Integration Node
+        shodan_details = threat.get("shodan_details")
+        shodan_ports = threat.get("shodan_ports", [])
+        shodan_vulns = threat.get("shodan_vulns", [])
+        if (shodan_details and isinstance(shodan_details, dict) and len(shodan_details) > 0) or shodan_ports or shodan_vulns:
+            shodan_node = QTreeWidgetItem(root_item, ["Shodan Host Intelligence"])
+            font_shodan = shodan_node.font(0)
+            font_shodan.setBold(True)
+            shodan_node.setFont(0, font_shodan)
+            shodan_node.setForeground(0, QBrush(QColor(45, 212, 191)))  # Teal
+
+            if threat.get("shodan_org"):
+                QTreeWidgetItem(shodan_node, [f"Organization: {threat.get('shodan_org')}"])
+            if threat.get("shodan_os"):
+                QTreeWidgetItem(shodan_node, [f"Operating System: {threat.get('shodan_os')}"])
+            if shodan_ports:
+                QTreeWidgetItem(shodan_node, [f"Open Ports: {', '.join(map(str, shodan_ports))}"])
+            if shodan_vulns:
+                vuln_item = QTreeWidgetItem(shodan_node, [f"Vulnerabilities / CVEs ({len(shodan_vulns)}):"])
+                vuln_item.setForeground(0, QBrush(QColor(248, 113, 113)))
+                for v in shodan_vulns[:10]:
+                    QTreeWidgetItem(vuln_item, [str(v)])
+            if threat.get("shodan_tags"):
+                QTreeWidgetItem(shodan_node, [f"Tags: {', '.join(threat.get('shodan_tags'))}"])
+            if threat.get("shodan_hostnames"):
+                QTreeWidgetItem(shodan_node, [f"Hostnames: {', '.join(threat.get('shodan_hostnames'))}"])
+        else:
+            status_text = "No API Key Configured" if not config.shodan_api_key else "No Data / Pending Lookup"
+            shodan_node = QTreeWidgetItem(root_item, [f"Shodan Details: ({status_text})"])
+            shodan_node.setForeground(0, QBrush(QColor(148, 163, 184)))

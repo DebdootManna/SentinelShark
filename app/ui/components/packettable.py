@@ -126,7 +126,7 @@ class PacketTable(QTableWidget):
                 if dst_ip:
                     self.ip_row_map.setdefault(dst_ip, []).append(row)
 
-                threat_str = "0% (Safe)"
+                threat_str = "0% Safe"
                 items = [
                     QTableWidgetItem(str(pkt.get("no", row + 1))),
                     QTableWidgetItem(str(pkt.get("time", ""))),
@@ -168,50 +168,52 @@ class PacketTable(QTableWidget):
                 # Calculate threat score
                 abuse_score = threat_data.get("abuse_score", 0)
                 vt_malicious = threat_data.get("vt_malicious", 0)
+                shodan_vulns = threat_data.get("shodan_vulns", [])
+
+                score = max(abuse_score, vt_malicious * 20)
+                if shodan_vulns and score < 50:
+                    score = 75
 
                 # Store threat data in packet model
                 self.packets[row]["threat_data"] = threat_data
-                self.packets[row]["threat_score"] = max(abuse_score, vt_malicious * 20)
+                self.packets[row]["threat_score"] = score
 
-                # Update Threat Score text column
-                if vt_malicious > 0:
-                    score_text = f"CRITICAL ({vt_malicious} VT)"
-                elif abuse_score > 30:
-                    score_text = f"HIGH ({abuse_score}%)"
-                elif abuse_score > 0:
-                    score_text = f"MED ({abuse_score}%)"
-                elif threat_data.get("is_public") is False:
-                    score_text = "Internal IP"
+                # Update Threat Score text column matching Redesigned UI (e.g., "0% Safe", "87% Risk", "99% Risk")
+                if threat_data.get("is_public") is False:
+                    score_text = "0% Safe"
+                elif score == 0:
+                    score_text = "0% Safe"
                 else:
-                    score_text = "0% (Safe)"
+                    score_text = f"{score}% Risk"
 
                 item = self.item(row, 7)
                 if item:
                     item.setText(score_text)
 
-                self._apply_row_style(row, threat_data)
+                self._apply_row_style(row, threat_data, score)
 
-    def _apply_row_style(self, row: int, threat_data: Optional[Dict[str, Any]]):
+    def _apply_row_style(self, row: int, threat_data: Optional[Dict[str, Any]], score: int = 0):
         """Apply dynamic color-coding based on threat classification for Public IPs exclusively."""
         if not threat_data or threat_data.get("is_public") is False:
             return
-
-        abuse_score = threat_data.get("abuse_score", 0)
-        vt_malicious = threat_data.get("vt_malicious", 0)
 
         bg_color = None
         text_color = None
         font_bold = False
 
-        if vt_malicious > 0 or abuse_score > 30:
+        if score >= 90:
             # Critical Threat: Red / Dark Crimson
             bg_color = QColor(127, 29, 29, 210)   # #7f1d1d
             text_color = QColor(254, 202, 202)   # #fecaca
             font_bold = True
-        elif abuse_score > 0 or threat_data.get("vt_suspicious", 0) > 0:
-            # Low-Medium Risk: Amber / Orange
+        elif score >= 50:
+            # High Risk: Orange / Amber
             bg_color = QColor(120, 53, 15, 190)   # #78350f
             text_color = QColor(254, 243, 199)   # #fef3c7
+        elif score > 0:
+            # Low Risk: Yellow
+            bg_color = QColor(113, 63, 18, 160)
+            text_color = QColor(254, 240, 138)
         elif threat_data.get("is_public") is True:
             # Safe Public IP: Dark Green
             bg_color = QColor(6, 78, 59, 180)     # #064e3b

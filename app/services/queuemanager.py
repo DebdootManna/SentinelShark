@@ -56,7 +56,7 @@ class ThreatIntelQueueManager:
             return
 
         # If no API keys are set, emit default public IP response to avoid wasting queue
-        if not config.abuseipdb_api_key and not config.virustotal_api_key and not config.ipinfo_api_key:
+        if not config.abuseipdb_api_key and not config.virustotal_api_key and not config.ipinfo_api_key and not config.shodan_api_key:
             default_resp = {
                 "ip": ip,
                 "abuse_score": 0,

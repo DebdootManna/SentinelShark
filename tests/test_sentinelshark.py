@@ -119,6 +119,7 @@ class TestSentinelSharkCore(unittest.TestCase):
             cfg.abuseipdb_api_key = "test_abuse_key_123"
             cfg.virustotal_api_key = "test_vt_key_456"
             cfg.ipinfo_api_key = "test_ipinfo_key_789"
+            cfg.shodan_api_key = "test_shodan_key_999"
             cfg.default_interface = "wlan0"
             cfg.mock_mode = True
             cfg.auto_scroll = False
@@ -131,6 +132,7 @@ class TestSentinelSharkCore(unittest.TestCase):
             self.assertIn("ABUSEIPDB_API_KEY=test_abuse_key_123", env_text)
             self.assertIn("VIRUSTOTAL_API_KEY=test_vt_key_456", env_text)
             self.assertIn("IPINFO_API_KEY=test_ipinfo_key_789", env_text)
+            self.assertIn("SHODAN_API_KEY=test_shodan_key_999", env_text)
             self.assertIn("DEFAULT_INTERFACE=wlan0", env_text)
             self.assertIn("MOCK_MODE=true", env_text)
             self.assertIn("AUTO_SCROLL=false", env_text)
@@ -141,6 +143,7 @@ class TestSentinelSharkCore(unittest.TestCase):
             self.assertEqual(cfg2.abuseipdb_api_key, "test_abuse_key_123")
             self.assertEqual(cfg2.virustotal_api_key, "test_vt_key_456")
             self.assertEqual(cfg2.ipinfo_api_key, "test_ipinfo_key_789")
+            self.assertEqual(cfg2.shodan_api_key, "test_shodan_key_999")
             self.assertEqual(cfg2.default_interface, "wlan0")
             self.assertTrue(cfg2.mock_mode)
             self.assertFalse(cfg2.auto_scroll)

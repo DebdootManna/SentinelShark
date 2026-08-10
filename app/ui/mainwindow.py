@@ -200,7 +200,7 @@ class InterfaceSelectionDialog(QDialog):
 
 
 class APISettingsDialog(QDialog):
-    """Configuration modal for entering AbuseIPDB, VirusTotal & IPinfo API keys."""
+    """Configuration modal for entering AbuseIPDB, VirusTotal, IPinfo & Shodan API keys."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,6 +228,11 @@ class APISettingsDialog(QDialog):
         self.ipinfo_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
         form.addRow("IPinfo API Key:", self.ipinfo_edit)
 
+        self.shodan_edit = QLineEdit(config.shodan_api_key)
+        self.shodan_edit.setPlaceholderText("Enter Shodan API Key")
+        self.shodan_edit.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+        form.addRow("Shodan API Key:", self.shodan_edit)
+
         self.ttl_spin = QLineEdit(str(config.cache_ttl_hours))
         form.addRow("Cache TTL (Hours):", self.ttl_spin)
 
@@ -252,6 +257,7 @@ class APISettingsDialog(QDialog):
         config.abuseipdb_api_key = self.abuse_edit.text().strip()
         config.virustotal_api_key = self.vt_edit.text().strip()
         config.ipinfo_api_key = self.ipinfo_edit.text().strip()
+        config.shodan_api_key = self.shodan_edit.text().strip()
         try:
             config.cache_ttl_hours = int(self.ttl_spin.text().strip())
             config.max_requests_per_minute = int(self.rate_spin.text().strip())
@@ -345,13 +351,13 @@ class MainWindow(QMainWindow):
         self.clear_btn.clicked.connect(self.clear_all)
         toolbar.addWidget(self.clear_btn)
 
-        self.save_btn = QPushButton("Save Capture")
+        self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self.save_pcap_dialog)
         toolbar.addWidget(self.save_btn)
 
         toolbar.addSeparator()
 
-        self.mock_btn = QPushButton("Mock Mode (ON)" if config.mock_mode else "Mock Mode")
+        self.mock_btn = QPushButton("Mock ON" if config.mock_mode else "Mock OFF")
         self.mock_btn.setObjectName("mockBtn")
         self.mock_btn.setCheckable(True)
         self.mock_btn.setChecked(config.mock_mode)
@@ -471,9 +477,10 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def on_packet_selected(self, pkt: dict):
-        """Update detail tree and hex dump view when a packet row is clicked."""
+        """Update detail tree, hex dump view, and right sidebar stats panel when a packet row is clicked."""
         self.packet_detail.display_packet(pkt)
         self.hex_view.display_packet(pkt)
+        self.stats_panel.set_selected_packet(pkt)
 
     @pyqtSlot(str, dict)
     def on_threat_resolved(self, ip: str, threat_data: dict):
@@ -562,7 +569,7 @@ class MainWindow(QMainWindow):
     def toggle_mock_mode(self, enabled: bool):
         config.mock_mode = enabled
         config.save()
-        self.mock_btn.setText("Mock Mode (ON)" if enabled else "Mock Mode")
+        self.mock_btn.setText("Mock ON" if enabled else "Mock OFF")
         mode_str = "Mock Mode Active" if enabled else "Live Mode Active"
         self.statusbar.showMessage(f"Switched to {mode_str}", 4000)
 
@@ -578,7 +585,7 @@ class MainWindow(QMainWindow):
             msg_box.setText("<b>This file has not been analyzed. Do you want to analyze it?</b>")
             msg_box.setInformativeText(
                 f"File: <b>{filename}</b>\n\n"
-                "Would you like SentinelShark to analyze public IP traffic with AbuseIPDB, VirusTotal, and IPinfo threat intelligence?"
+                "Would you like SentinelShark to analyze public IP traffic with AbuseIPDB, VirusTotal, IPinfo, and Shodan threat intelligence?"
             )
             btn_yes = msg_box.addButton("Yes", QMessageBox.ButtonRole.YesRole)
             btn_no = msg_box.addButton("No", QMessageBox.ButtonRole.NoRole)
@@ -619,7 +626,7 @@ class MainWindow(QMainWindow):
             cache.clear_memory()
             queue_manager.clear()
             self.mock_btn.setChecked(config.mock_mode)
-            self.mock_btn.setText("Mock Mode (ON)" if config.mock_mode else "Mock Mode")
+            self.mock_btn.setText("Mock ON" if config.mock_mode else "Mock OFF")
             self.statusbar.showMessage("Configuration saved successfully. Cache flushed for new API keys.", 4000)
 
     def update_capture_status(self, status_msg: str):
@@ -647,11 +654,11 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "About SentinelShark",
-            "<h3>SentinelShark NIDS v1.0</h3>"
+            "<h3>SentinelShark NIDS v2.4.1</h3>"
             "<p>A modern desktop Network Intrusion Detection & Analysis System (NIDS) "
             "written in Python with PyQt6, PyShark, and httpx.</p>"
             "<p>Enriches live network traffic with real-time threat intelligence and geolocation data "
-            "from <b>VirusTotal</b>, <b>AbuseIPDB</b>, and <b>IPinfo</b>.</p>"
+            "from <b>VirusTotal</b>, <b>AbuseIPDB</b>, <b>IPinfo</b>, and <b>Shodan</b>.</p>"
         )
 
     def closeEvent(self, event):
