@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QGroupBox, QProgressBar, QFrame, QPushButton, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QGroupBox, QProgressBar, QFrame, QPushButton, QSizePolicy, QLayout
 )
 from app.config import config
 
@@ -184,12 +184,19 @@ class StatsPanel(QWidget):
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.init_ui()
-        self.setMinimumSize(320, 600)
+        self.setMinimumSize(320, 650)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(320, 650)
+
+    def sizeHint(self) -> QSize:
+        return QSize(340, 680)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(14)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
 
         # 1. Metric Cards 2x2 Grid
         grid = QGridLayout()
