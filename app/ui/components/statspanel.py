@@ -59,7 +59,7 @@ class StatCard(QFrame):
 
         self.value_lbl = QLabel(initial_value)
         self.value_lbl.setStyleSheet(f"""
-            font-size: 20px;
+            font-size: 16px;
             font-weight: bold;
             color: {self.accent_color};
             font-family: 'JetBrains Mono', monospace;
@@ -90,6 +90,8 @@ class StatsPanel(QWidget):
         self.selected_pkt: Optional[Dict[str, Any]] = None
         self.proto_row_widgets: Dict[str, dict] = {}
 
+        self.setMinimumWidth(300)
+        self.setMinimumHeight(520)
         self.init_ui()
 
     def init_ui(self):

@@ -256,6 +256,47 @@ QSplitter::handle:vertical {
     height: 6px;
 }
 
+/* ScrollBars */
+QScrollBar:vertical {
+    background-color: #0B1220;
+    width: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #1E293B;
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #22D3EE;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar:horizontal {
+    background-color: #0B1220;
+    height: 8px;
+    margin: 0px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #1E293B;
+    min-width: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #22D3EE;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
 /* Status Bar */
 QStatusBar {
     background-color: #060C14;

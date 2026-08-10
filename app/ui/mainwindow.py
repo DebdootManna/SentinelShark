@@ -391,22 +391,25 @@ class MainWindow(QMainWindow):
         self.packet_table = PacketTable()
         self.stats_panel = StatsPanel()
 
-        # Wrap StatsPanel in a QScrollArea so it can shrink vertically without locking the top splitter pane
+        # Wrap StatsPanel in a QScrollArea so it can shrink/scroll cleanly without squishing fonts
         self.stats_scroll = QScrollArea()
         self.stats_scroll.setWidgetResizable(True)
         self.stats_scroll.setWidget(self.stats_panel)
         self.stats_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.stats_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.stats_scroll.setMinimumWidth(300)
         self.stats_scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
 
         # Allow panes to shrink comfortably
         self.packet_table.setMinimumHeight(80)
-        self.stats_panel.setMinimumHeight(80)
         self.top_h_splitter.setMinimumHeight(100)
 
         self.top_h_splitter.addWidget(self.packet_table)
         self.top_h_splitter.addWidget(self.stats_scroll)
-        self.top_h_splitter.setStretchFactor(0, 4)
+        self.top_h_splitter.setCollapsible(1, False)
+        self.top_h_splitter.setSizes([950, 330])
+        self.top_h_splitter.setStretchFactor(0, 3)
         self.top_h_splitter.setStretchFactor(1, 1)
 
         # Bottom Horizontal Splitter (Detail Tree + Hex View)
