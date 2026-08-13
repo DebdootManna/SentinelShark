@@ -7,6 +7,23 @@ namespace SentinelSharkDotNet.Core;
 
 public static class PcapWriter
 {
+    public static bool SavePacketsAuto(string filepath, List<PacketInfo> packets)
+    {
+        if (filepath.EndsWith(".pcapng", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                PcapNgWriter.SavePackets(filepath, packets);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        return SavePcapFile(filepath, packets);
+    }
+
     public static bool SavePcapFile(string filepath, List<PacketInfo> packets)
     {
         try

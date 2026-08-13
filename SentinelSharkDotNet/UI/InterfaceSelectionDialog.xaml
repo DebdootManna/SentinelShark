@@ -106,6 +106,46 @@
                     </DataGrid.Resources>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="INTERFACE" Binding="{Binding FriendlyName}" Width="2*"/>
+                        <DataGridTemplateColumn Header="STATUS" Width="0.8*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#1A22C55E"/>
+                                                <Setter Property="BorderBrush" Value="#4022C55E"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="DOWN">
+                                                        <Setter Property="Background" Value="#1A64748B"/>
+                                                        <Setter Property="BorderBrush" Value="#4064748B"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="LOOPBACK">
+                                                        <Setter Property="Background" Value="#1A06B6D4"/>
+                                                        <Setter Property="BorderBrush" Value="#4006B6D4"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Status}" FontSize="10" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#FF4ADE80"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="DOWN">
+                                                            <Setter Property="Foreground" Value="#FF94A3B8"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="LOOPBACK">
+                                                            <Setter Property="Foreground" Value="#FF22D3EE"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="IP ADDRESS" Binding="{Binding IpAddress}" Width="1.5*"/>
                         <DataGridTemplateColumn Header="LIVE TRAFFIC SPARKLINES" Width="1.5*">
                             <DataGridTemplateColumn.CellTemplate>

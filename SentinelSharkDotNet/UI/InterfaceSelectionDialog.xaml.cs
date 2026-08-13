@@ -29,6 +29,7 @@ public partial class InterfaceSelectionDialog : Window
         public string FriendlyName { get; set; } = string.Empty;
         public string IpAddress { get; set; } = string.Empty;
         public string Id { get; set; } = string.Empty;
+        public string Status { get; set; } = "UP";
 
         public string RateDisplay
         {
@@ -61,10 +62,7 @@ public partial class InterfaceSelectionDialog : Window
     {
         try
         {
-            var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(ni => ni.OperationalStatus == OperationalStatus.Up && 
-                             ni.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-                .ToList();
+            var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces().ToList();
 
             foreach (var ni in networkInterfaces)
             {
@@ -77,11 +75,22 @@ public partial class InterfaceSelectionDialog : Window
                 }
                 catch { }
 
+                string statusStr = "UP";
+                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                {
+                    statusStr = "LOOPBACK";
+                }
+                else if (ni.OperationalStatus != OperationalStatus.Up)
+                {
+                    statusStr = "DOWN";
+                }
+
                 _interfaces.Add(new InterfaceInfo
                 {
                     Id = ni.Id,
                     FriendlyName = ni.Name,
-                    IpAddress = ipAddress
+                    IpAddress = ipAddress,
+                    Status = statusStr
                 });
                 
                 try

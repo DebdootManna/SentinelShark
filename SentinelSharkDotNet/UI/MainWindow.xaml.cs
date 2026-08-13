@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Text;
 using SentinelSharkDotNet.Models;
 using SentinelSharkDotNet.Core;
 using SentinelSharkDotNet.Services;
@@ -157,13 +158,13 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "PCAP Files (*.pcap)|*.pcap|All Files (*.*)|*.*",
-            DefaultExt = ".pcap"
+            Filter = "Wireshark PCAPNG (*.pcapng)|*.pcapng|Wireshark PCAP (*.pcap)|*.pcap|All Files (*.*)|*.*",
+            DefaultExt = ".pcapng"
         };
 
         if (dialog.ShowDialog() == true)
         {
-            PcapWriter.SavePcapFile(dialog.FileName, _packets.ToList());
+            PcapWriter.SavePacketsAuto(dialog.FileName, _packets.ToList());
         }
     }
 
@@ -354,28 +355,62 @@ public partial class MainWindow : Window
         if (packet?.ThreatData != null)
         {
             var threat = packet.ThreatData;
-            bool isThreat = packet.ThreatScore > 0;
-            var threatNode = new TreeViewItem { Header = $"Threat Intel Summary - {(isThreat ? "THREAT" : "SAFE")}", FontWeight = FontWeights.Bold };
-            threatNode.Foreground = isThreat ? (Brush)FindResource("CriticalRedBrush") : (Brush)FindResource("SafeGreenBrush");
-            
-            string description = $"{threat.IpInfoOrg} {threat.Country} {(threat.Domain != null ? "- " + threat.Domain : "")}".Trim();
+            string targetIp = !string.IsNullOrEmpty(threat.Ip) ? threat.Ip : (!string.IsNullOrEmpty(packet.Destination) ? packet.Destination : packet.Source);
 
-            threatNode.Items.Add(new TreeViewItem { Header = $"IP: {threat.Ip}" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"Score: {packet.ThreatScore}/100" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"Description: {description}" });
-            
+            // 1. Threat Intelligence Summary Node
+            string nodeTitle = $"Threat Intelligence Summary [IP: {targetIp}] - Abuse: {threat.AbuseScore}%, VT Malicious: {threat.VtMalicious}";
+            bool isThreat = packet.ThreatScore > 0 || threat.VtMalicious > 0 || threat.AbuseScore > 20;
+
+            var threatNode = new TreeViewItem 
+            { 
+                Header = nodeTitle, 
+                FontWeight = FontWeights.Bold,
+                Foreground = isThreat ? (Brush)FindResource("CriticalRedBrush") : (Brush)FindResource("SafeGreenBrush"),
+                IsExpanded = true 
+            };
+
+            threatNode.Items.Add(new TreeViewItem { Header = $"AbuseIPDB Score: {threat.AbuseScore}% ({threat.ReportsCount} total reports)" });
+            threatNode.Items.Add(new TreeViewItem { Header = $"VirusTotal Detections: {threat.VtMalicious} Malicious, {threat.VtSuspicious} Suspicious" });
+            threatNode.Items.Add(new TreeViewItem { Header = $"Geographic Country Code: {(!string.IsNullOrEmpty(threat.Country) ? threat.Country : "N/A")}" });
+            threatNode.Items.Add(new TreeViewItem { Header = $"Associated Domain: {(!string.IsNullOrEmpty(threat.Domain) ? threat.Domain : "N/A")}" });
+            threatNode.Items.Add(new TreeViewItem { Header = $"Cache Status: {(threat.IsCached ? "In-Memory Cache" : "Live API Lookup")}" });
+
             PacketDetailTree.Items.Add(threatNode);
+
+            // 2. IPinfo Details & Geolocation Node
+            var ipinfoNode = new TreeViewItem 
+            { 
+                Header = "IPinfo Details & Geolocation", 
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                IsExpanded = true 
+            };
+
+            ipinfoNode.Items.Add(new TreeViewItem { Header = $"ip: {targetIp}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoCity)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"city: {threat.IpInfoCity}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoRegion)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"region: {threat.IpInfoRegion}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoCountry)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"country: {threat.IpInfoCountry}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoLoc)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"loc: {threat.IpInfoLoc}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoOrg)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"org: {threat.IpInfoOrg}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoPostal)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"postal: {threat.IpInfoPostal}" });
+            if (!string.IsNullOrEmpty(threat.IpInfoTimezone)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"timezone: {threat.IpInfoTimezone}" });
+            
+            ipinfoNode.Items.Add(new TreeViewItem { Header = "Shodan Details: (No Public Ports / Unindexed Host)" });
+
+            PacketDetailTree.Items.Add(ipinfoNode);
         }
 
         foreach (var layer in layers)
         {
-            PacketDetailTree.Items.Add(CreateTreeItem(layer));
+            var item = CreateTreeItem(layer);
+            item.IsExpanded = true;
+            PacketDetailTree.Items.Add(item);
         }
     }
 
     private TreeViewItem CreateTreeItem(LayerNode node)
     {
-        var item = new TreeViewItem { Header = node.Label };
+        var item = new TreeViewItem { Header = node.Label, IsExpanded = true };
         foreach (var child in node.Children)
         {
             item.Items.Add(CreateTreeItem(child));
@@ -399,35 +434,35 @@ public partial class MainWindow : Window
         Md5Text.Text = packet.PayloadHashMd5;
         Sha256Text.Text = packet.PayloadHashSha256;
 
-        var paragraph = new Paragraph();
+        var paragraph = new Paragraph { FontFamily = (FontFamily)FindResource("MonoFont"), FontSize = 12.0 };
         
         for (int i = 0; i < packet.RawBytes.Length; i += 16)
         {
             var offsetRun = new Run($"{i:X4}  ") { Foreground = (Brush)FindResource("AccentCyanBrush") };
             paragraph.Inlines.Add(offsetRun);
 
-            string hexPart = "";
-            string asciiPart = "";
+            var hexPart = new StringBuilder();
+            var asciiPart = new StringBuilder();
 
             for (int j = 0; j < 16; j++)
             {
                 if (i + j < packet.RawBytes.Length)
                 {
                     byte b = packet.RawBytes[i + j];
-                    hexPart += $"{b:X2} ";
-                    asciiPart += (b >= 32 && b <= 126) ? (char)b : '.';
+                    hexPart.Append($"{b:x2} ");
+                    asciiPart.Append((b >= 32 && b <= 126) ? (char)b : '.');
                 }
                 else
                 {
-                    hexPart += "   ";
-                    asciiPart += " ";
+                    hexPart.Append("   ");
+                    asciiPart.Append(' ');
                 }
 
-                if (j == 7) hexPart += " ";
+                if (j == 7) hexPart.Append(' ');
             }
 
-            var hexRun = new Run(hexPart + "  ") { Foreground = Brushes.White };
-            var asciiRun = new Run(asciiPart + "\n") { Foreground = (Brush)FindResource("TextMutedBrush") };
+            var hexRun = new Run(hexPart.ToString() + " ") { Foreground = Brushes.White };
+            var asciiRun = new Run(asciiPart.ToString() + "\n") { Foreground = (Brush)FindResource("AccentCyanBrush") };
             
             paragraph.Inlines.Add(hexRun);
             paragraph.Inlines.Add(asciiRun);

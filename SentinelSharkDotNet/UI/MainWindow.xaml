@@ -230,7 +230,26 @@
                     <Border Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
                         <StackPanel>
                             <TextBlock Text="THREAT INTEL API QUEUE" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,8"/>
-                            <TextBlock x:Name="QueueStatusText" Text="Idle" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                            <Grid Margin="0,2">
+                                <TextBlock Text="VirusTotal" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                                <TextBlock x:Name="VtApiStatusText" Text="Key Missing" Foreground="{StaticResource TextMutedBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Grid Margin="0,2">
+                                <TextBlock Text="AbuseIPDB" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                                <TextBlock x:Name="AbuseApiStatusText" Text="Key Missing" Foreground="{StaticResource TextMutedBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Grid Margin="0,2">
+                                <TextBlock Text="Shodan" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                                <TextBlock x:Name="ShodanApiStatusText" Text="Key Missing" Foreground="{StaticResource TextMutedBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Grid Margin="0,2">
+                                <TextBlock Text="IPinfo" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                                <TextBlock x:Name="IpInfoApiStatusText" Text="Free Tier Active" Foreground="{StaticResource SafeGreenBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <TextBlock Text="Queue Processing" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                                <TextBlock x:Name="QueueStatusText" Text="Idle" Foreground="{StaticResource AccentCyanBrush}" FontSize="11" HorizontalAlignment="Right"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     

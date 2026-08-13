@@ -40,24 +40,6 @@ public class ThreatQueueManager
         {
             if (_pendingIps.Contains(ip) || _inProgressIps.Contains(ip))
                 return;
-        }
-
-        if (string.IsNullOrWhiteSpace(AppConfig.Instance.AbuseIpDbApiKey) && 
-            string.IsNullOrWhiteSpace(AppConfig.Instance.VirusTotalApiKey) &&
-            string.IsNullOrWhiteSpace(AppConfig.Instance.ShodanApiKey) &&
-            string.IsNullOrWhiteSpace(AppConfig.Instance.IpInfoApiKey))
-        {
-            var defaultResult = new ThreatData
-            {
-                Domain = "No API Keys Set",
-                NoKeys = true
-            };
-            ThreatResolved?.Invoke(ip, defaultResult);
-            return;
-        }
-
-        lock (_lock)
-        {
             _pendingIps.Add(ip);
         }
         
