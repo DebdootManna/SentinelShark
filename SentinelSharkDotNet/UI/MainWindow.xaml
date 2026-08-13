@@ -1,0 +1,291 @@
+<Window x:Class="SentinelSharkDotNet.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SentinelSharkDotNet.UI"
+        mc:Ignorable="d"
+        Title="SentinelShark - Network Intrusion Detection &amp; Analysis System" 
+        Height="900" Width="1400" 
+        MinWidth="1200" MinHeight="700"
+        Background="{StaticResource BaseBackgroundBrush}"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="260" />
+            <RowDefinition Height="26" />
+        </Grid.RowDefinitions>
+
+        <!-- 1. Title Bar -->
+        <Border Grid.Row="0" Background="{StaticResource HeaderBackgroundBrush}">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Path Data="M 12 0 L 24 12 L 12 24 L 0 12 Z M 12 4 L 20 12 L 12 20 L 4 12 Z" Fill="{StaticResource AccentCyanBrush}" Width="24" Height="24" Stretch="Uniform" Margin="0,0,10,0" />
+                    <TextBlock Text="SentinelShark" Foreground="{StaticResource AccentCyanBrush}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="v2.4.1 — Network Intrusion Detection &amp; Analysis" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusIndicatorText" Text="● IDLE" Foreground="{StaticResource TextMutedBrush}" FontFamily="{StaticResource MonoFont}" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 2. Toolbar -->
+        <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}" Padding="8,16">
+            <DockPanel LastChildFill="True">
+                <ComboBox x:Name="InterfaceCombo" DockPanel.Dock="Left" Width="160" Margin="0,0,8,0" SelectionChanged="InterfaceCombo_SelectionChanged" />
+                
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button x:Name="StartBtn" Content="Start Capture" Style="{StaticResource StartButtonStyle}" Margin="8,0,0,0" Click="StartBtn_Click"/>
+                    <Button x:Name="StopBtn" Content="■ Stop" Style="{StaticResource StopButtonStyle}" Margin="8,0,0,0" Click="StopBtn_Click"/>
+                    <Button x:Name="ClearBtn" Content="Clear" Style="{StaticResource ClearButtonStyle}" Margin="8,0,0,0" Click="ClearBtn_Click"/>
+                    <Button x:Name="SaveBtn" Content="💾 Save" Margin="8,0,0,0" Click="SaveBtn_Click"/>
+                    <ToggleButton x:Name="MockToggle" Content="⚡ Mock OFF" Style="{StaticResource MockToggleStyle}" Margin="8,0,0,0" Checked="MockToggle_Checked" Unchecked="MockToggle_Unchecked"/>
+                    <Button x:Name="ApiKeysBtn" Content="🔑 API Keys" Margin="8,0,0,0" Click="ApiKeysBtn_Click"/>
+                </StackPanel>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="🔍" VerticalAlignment="Center" Margin="8,0,4,0" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBox x:Name="BpfFilterBox" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <!-- 3. Main Content Area Top -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Packet DataGrid -->
+            <DataGrid x:Name="PacketGrid" Grid.Column="0" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" SelectionChanged="PacketGrid_SelectionChanged" Background="{StaticResource PanelBackgroundBrush}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="No." Binding="{Binding Number}" Width="60">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Time" Binding="{Binding TimeString}" Width="100"/>
+                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="140"/>
+                    <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="140"/>
+                    <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80"/>
+                    <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="70">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Info" Binding="{Binding Info}" Width="*"/>
+                    <DataGridTextColumn Header="Threat Score" Binding="{Binding ThreatScore}" Width="120">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
+
+            <!-- Sidebar -->
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="8">
+                    <!-- Stat Cards 2x2 Grid -->
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <Border Grid.Row="0" Grid.Column="0" Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Text="TOTAL PACKETS" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                <TextBlock x:Name="TotalPacketsText" Text="0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <Border Grid.Row="0" Grid.Column="1" Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Text="DATA TRAFFIC" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                <TextBlock x:Name="TotalBytesText" Text="0 B" Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <Border Grid.Row="1" Grid.Column="0" Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Text="SAFE PACKETS" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                <TextBlock x:Name="SafePacketsText" Text="0" Foreground="{StaticResource SafeGreenBrush}" FontSize="16" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <Border Grid.Row="1" Grid.Column="1" Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Text="THREATS DETECTED" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+                                <TextBlock x:Name="ThreatsDetectedText" Text="0" Foreground="{StaticResource CriticalRedBrush}" FontSize="16" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Protocol Breakdown -->
+                    <Border Margin="4,8,4,4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock Text="PROTOCOL BREAKDOWN" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,8"/>
+                            <ItemsControl x:Name="ProtocolBreakdownList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="50"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="40"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Key}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
+                                            <ProgressBar Grid.Column="1" Value="{Binding Value}" Maximum="100" Height="6" Margin="4,0" BorderThickness="0" Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource InputBackgroundBrush}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Value, StringFormat={}{0}%}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Threat Intel Queue -->
+                    <Border Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock Text="THREAT INTEL API QUEUE" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="QueueStatusText" Text="Idle" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Selected Packet Summary -->
+                    <Border Margin="4" Padding="8" Background="{StaticResource CardBackgroundBrush}" CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock Text="SELECTED PACKET" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="SelectedPacketSummaryText" Text="None selected" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
+
+        <!-- 4. Main Content Area Bottom (Details) -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Tree View -->
+            <Border Grid.Column="0" Background="{StaticResource PanelBackgroundBrush}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBackgroundBrush}" Padding="8,4">
+                        <Grid>
+                            <TextBlock Text="Packet Details (Dissection)" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Expand All" Margin="0,0,4,0" FontSize="10" Padding="4,2"/>
+                                <Button Content="Collapse All" FontSize="10" Padding="4,2"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <TreeView x:Name="PacketDetailTree" Background="Transparent" BorderThickness="0" Margin="4"/>
+                </DockPanel>
+            </Border>
+            
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}"/>
+            
+            <!-- Hex Viewer -->
+            <Border Grid.Column="2" Background="{StaticResource PanelBackgroundBrush}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="{StaticResource HeaderBackgroundBrush}" Padding="8,4">
+                        <Grid>
+                            <TextBlock Text="Raw Packet Bytes" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="HexByteCountText" Text="0 bytes" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    
+                    <Border DockPanel.Dock="Bottom" Background="{StaticResource HeaderBackgroundBrush}" Padding="8,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="MD5:" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="Md5Text" Grid.Column="1" IsReadOnly="True" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="{StaticResource MonoFont}"/>
+                            
+                            <TextBlock Grid.Column="2" Text="SHA256:" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                            <TextBox x:Name="Sha256Text" Grid.Column="3" IsReadOnly="True" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="{StaticResource MonoFont}"/>
+                        </Grid>
+                    </Border>
+                    
+                    <RichTextBox x:Name="HexViewer" IsReadOnly="True" Background="{StaticResource HexViewBackgroundBrush}" BorderThickness="0" FontFamily="{StaticResource MonoFont}" FontSize="12" Padding="8" VerticalScrollBarVisibility="Auto">
+                        <FlowDocument PageWidth="800"/>
+                    </RichTextBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- 5. Status Bar -->
+        <Border Grid.Row="5" Background="{StaticResource StatusBarBackgroundBrush}">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="CaptureStatusLabel" Text="○ Capture stopped" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="FilterIndicator" Text="No Filter" Foreground="{StaticResource TextDimBrush}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="PacketCountLabel" Text="Packets: 0" Foreground="{StaticResource TextDimBrush}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="ByteCountLabel" Text="Bytes: 0" Foreground="{StaticResource TextDimBrush}" FontSize="11"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="TSharkStatusDot" Width="8" Height="8" Fill="{StaticResource WarningAmberBrush}" Margin="0,0,4,0"/>
+                    <TextBlock x:Name="TSharkStatusText" Text="Checking TShark..." Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock Text="SentinelShark v2.4.1" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

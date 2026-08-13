@@ -1,0 +1,76 @@
+<Window x:Class="SentinelSharkDotNet.UI.ApiSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SentinelShark - API Configuration"
+        Height="550" Width="520"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="NoResize"
+        Background="Transparent">
+
+    <Border Background="{DynamicResource CardBackgroundBrush}" 
+            BorderBrush="{DynamicResource BorderBrush}" 
+            BorderThickness="1" 
+            CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" Margin="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="12" Height="12" Fill="{DynamicResource CriticalRedBrush}" Margin="0,0,8,0"/>
+                    <Ellipse Width="12" Height="12" Fill="{DynamicResource WarningAmberBrush}" Margin="0,0,8,0"/>
+                    <Ellipse Width="12" Height="12" Fill="{DynamicResource SafeGreenBrush}" Margin="0,0,16,0"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="API Settings &amp; Configuration" Foreground="{DynamicResource TextMutedBrush}" FontFamily="{DynamicResource UIFont}" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            </Grid>
+
+            <!-- Form -->
+            <StackPanel Grid.Row="1" Margin="24,0,24,0">
+                <TextBlock Text="AbuseIPDB API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,4"/>
+                <TextBox x:Name="TxtAbuseIPDB" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+
+                <TextBlock Text="VirusTotal API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
+                <TextBox x:Name="TxtVirusTotal" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+
+                <TextBlock Text="IPinfo API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
+                <TextBox x:Name="TxtIPinfo" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+
+                <TextBlock Text="Shodan API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
+                <TextBox x:Name="TxtShodan" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Text="Cache TTL (Hours)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="TxtCacheTTL" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Text="Max Requests/Min" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        <TextBox x:Name="TxtMaxRequests" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                    </StackPanel>
+                </Grid>
+
+                <CheckBox x:Name="ChkMockMode" Content="Mock Mode" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,24,0,0"/>
+            </StackPanel>
+
+            <!-- Footer -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,24">
+                <Button Content="Cancel" Click="CancelBtn_Click" Style="{DynamicResource ClearButtonStyle}" Width="120" Height="32" Margin="0,0,16,0"/>
+                <Button Content="Save Settings" Click="SaveBtn_Click" Style="{DynamicResource StartButtonStyle}" Width="160" Height="32"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
