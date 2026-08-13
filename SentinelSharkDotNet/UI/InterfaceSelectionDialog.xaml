@@ -64,26 +64,44 @@
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="BorderThickness" Value="0"/>
                             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="#FFF8FAFC"/>
-                                </Trigger>
-                            </Style.Triggers>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridCell">
+                                        <Border Background="Transparent" BorderThickness="0" Padding="8,0" SnapsToDevicePixels="True">
+                                            <ContentPresenter VerticalAlignment="Center" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                         <Style TargetType="DataGridRow">
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             <Setter Property="Cursor" Value="Hand"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#FF1D4ED8"/>
-                                    <Setter Property="Foreground" Value="#FFF8FAFC"/>
-                                </Trigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#FF1E293B"/>
-                                </Trigger>
-                            </Style.Triggers>
+                            <Setter Property="SnapsToDevicePixels" Value="True"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="DataGridRow">
+                                        <Border x:Name="RowBorder" Background="{TemplateBinding Background}" BorderThickness="1" BorderBrush="Transparent" Padding="0,2" CornerRadius="6" Margin="0,2">
+                                            <DataGridCellsPresenter ItemsControl.ItemsPanel="{TemplateBinding ItemsPanel}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="RowBorder" Property="Background" Value="#FF1E40AF"/>
+                                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="#FF3B82F6"/>
+                                                <Setter Property="Foreground" Value="#FFF8FAFC"/>
+                                            </Trigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsMouseOver" Value="True"/>
+                                                    <Condition Property="IsSelected" Value="False"/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="RowBorder" Property="Background" Value="#FF1E293B"/>
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                         </Style>
                     </DataGrid.Resources>
                     <DataGrid.Columns>

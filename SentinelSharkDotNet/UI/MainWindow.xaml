@@ -217,7 +217,7 @@
                                                 <ColumnDefinition Width="40"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Key}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                            <ProgressBar Grid.Column="1" Value="{Binding Value}" Maximum="100" Height="6" Margin="4,0" BorderThickness="0" Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource InputBackgroundBrush}"/>
+                                            <ProgressBar Grid.Column="1" Value="{Binding Value, Mode=OneWay}" Maximum="100" Height="6" Margin="4,0" BorderThickness="0" Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource InputBackgroundBrush}"/>
                                             <TextBlock Grid.Column="2" Text="{Binding Value, StringFormat={}{0}%}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
                                     </DataTemplate>

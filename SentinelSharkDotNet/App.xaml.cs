@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Windows;
 
 namespace SentinelSharkDotNet;
@@ -12,12 +13,12 @@ public partial class App : Application
         this.DispatcherUnhandledException += (s, args) =>
         {
             args.Handled = true;
-            MessageBox.Show($"UI Exception caught safely: {args.Exception.Message}", "SentinelShark Exception Handler", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Debug.WriteLine($"UI Exception handled safely: {args.Exception.Message}");
         };
 
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
-            MessageBox.Show($"Application Exception: {args.ExceptionObject}", "SentinelShark Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Debug.WriteLine($"Application Exception: {args.ExceptionObject}");
         };
     }
 }
