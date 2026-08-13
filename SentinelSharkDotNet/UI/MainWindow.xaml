@@ -85,6 +85,69 @@
             </Grid.ColumnDefinitions>
 
             <DataGrid x:Name="PacketGrid" Grid.Column="0" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" SelectionChanged="PacketGrid_SelectionChanged" Background="{StaticResource PanelBackgroundBrush}">
+                <DataGrid.Resources>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Background="Transparent" BorderThickness="0" Padding="4,2" SnapsToDevicePixels="True">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="SnapsToDevicePixels" Value="True"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridRow">
+                                    <Border x:Name="RowBorder" Background="{TemplateBinding Background}" BorderThickness="0" Padding="0,2" Margin="0,1">
+                                        <DataGridCellsPresenter ItemsControl.ItemsPanel="{TemplateBinding ItemsPanel}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <!-- Critical Threat (>= 90): Dark Crimson Red -->
+                                        <DataTrigger Binding="{Binding IsCriticalThreat}" Value="True">
+                                            <Setter TargetName="RowBorder" Property="Background" Value="#D97F1D1D"/>
+                                            <Setter Property="Foreground" Value="#FFFECACA"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </DataTrigger>
+
+                                        <!-- High Risk (>= 50): Dark Orange / Amber -->
+                                        <DataTrigger Binding="{Binding IsHighRiskThreat}" Value="True">
+                                            <Setter TargetName="RowBorder" Property="Background" Value="#D978350F"/>
+                                            <Setter Property="Foreground" Value="#FFFEF3C7"/>
+                                        </DataTrigger>
+
+                                        <!-- Low Risk (> 0): Dark Yellow -->
+                                        <DataTrigger Binding="{Binding IsLowRiskThreat}" Value="True">
+                                            <Setter TargetName="RowBorder" Property="Background" Value="#D9713F12"/>
+                                            <Setter Property="Foreground" Value="#FFFEF08A"/>
+                                        </DataTrigger>
+
+                                        <!-- Safe Public IP (score == 0 & Public Resolved): Dark Emerald Green -->
+                                        <DataTrigger Binding="{Binding IsSafePublicIp}" Value="True">
+                                            <Setter TargetName="RowBorder" Property="Background" Value="#B3064E3B"/>
+                                            <Setter Property="Foreground" Value="#FFD1FAE5"/>
+                                        </DataTrigger>
+
+                                        <!-- Selected Row Override -->
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="RowBorder" Property="Background" Value="#FF1D4ED8"/>
+                                            <Setter Property="Foreground" Value="#FFF8FAFC"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGrid.Resources>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="NO." Binding="{Binding No}" Width="60">
                         <DataGridTextColumn.ElementStyle>
@@ -142,14 +205,23 @@
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border x:Name="BadgeBorder" CornerRadius="10" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#1F22C55E" BorderBrush="#4022C55E" BorderThickness="1">
-                                    <TextBlock x:Name="BadgeText" Text="0% Safe" Foreground="#FF4ADE80" FontSize="11" FontFamily="{StaticResource MonoFont}" FontWeight="Medium"/>
+                                    <TextBlock x:Name="BadgeText" Text="{Binding ThreatScoreDisplay}" Foreground="#FF4ADE80" FontSize="11" FontFamily="{StaticResource MonoFont}" FontWeight="Medium"/>
                                 </Border>
                                 <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding ThreatScore}" Value="0">
-                                        <Setter TargetName="BadgeBorder" Property="Background" Value="#1F22C55E"/>
-                                        <Setter TargetName="BadgeBorder" Property="BorderBrush" Value="#4022C55E"/>
-                                        <Setter TargetName="BadgeText" Property="Text" Value="0% Safe"/>
-                                        <Setter TargetName="BadgeText" Property="Foreground" Value="#FF4ADE80"/>
+                                    <DataTrigger Binding="{Binding IsLowRiskThreat}" Value="True">
+                                        <Setter TargetName="BadgeBorder" Property="Background" Value="#1FEAB308"/>
+                                        <Setter TargetName="BadgeBorder" Property="BorderBrush" Value="#40EAB308"/>
+                                        <Setter TargetName="BadgeText" Property="Foreground" Value="#FFFACC15"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsHighRiskThreat}" Value="True">
+                                        <Setter TargetName="BadgeBorder" Property="Background" Value="#1FF59E0B"/>
+                                        <Setter TargetName="BadgeBorder" Property="BorderBrush" Value="#40F59E0B"/>
+                                        <Setter TargetName="BadgeText" Property="Foreground" Value="#FFFBBF24"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsCriticalThreat}" Value="True">
+                                        <Setter TargetName="BadgeBorder" Property="Background" Value="#1FEF4444"/>
+                                        <Setter TargetName="BadgeBorder" Property="BorderBrush" Value="#40EF4444"/>
+                                        <Setter TargetName="BadgeText" Property="Foreground" Value="#FFF87171"/>
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>

@@ -23,7 +23,54 @@ public class PacketInfo : INotifyPropertyChanged
     public string Protocol { get => _protocol; set { _protocol = value; OnPropertyChanged(); } }
     public int Length { get => _length; set { _length = value; OnPropertyChanged(); } }
     public string Info { get => _info; set { _info = value; OnPropertyChanged(); } }
-    public int ThreatScore { get => _threatScore; set { _threatScore = value; OnPropertyChanged(); } }
+    
+    public int ThreatScore
+    {
+        get => _threatScore;
+        set
+        {
+            if (_threatScore != value)
+            {
+                _threatScore = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ThreatScoreDisplay));
+                OnPropertyChanged(nameof(IsCriticalThreat));
+                OnPropertyChanged(nameof(IsHighRiskThreat));
+                OnPropertyChanged(nameof(IsLowRiskThreat));
+                OnPropertyChanged(nameof(IsSafePublicIp));
+            }
+        }
+    }
+
+    public ThreatData? ThreatData
+    {
+        get => _threatData;
+        set
+        {
+            _threatData = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ThreatScoreDisplay));
+            OnPropertyChanged(nameof(IsCriticalThreat));
+            OnPropertyChanged(nameof(IsHighRiskThreat));
+            OnPropertyChanged(nameof(IsLowRiskThreat));
+            OnPropertyChanged(nameof(IsSafePublicIp));
+        }
+    }
+
+    public string ThreatScoreDisplay
+    {
+        get
+        {
+            if (_threatScore == 0) return "0% Safe";
+            return $"{_threatScore}% Risk";
+        }
+    }
+
+    public bool IsCriticalThreat => _threatScore >= 90;
+    public bool IsHighRiskThreat => _threatScore >= 50 && _threatScore < 90;
+    public bool IsLowRiskThreat => _threatScore > 0 && _threatScore < 50;
+    public bool IsSafePublicIp => _threatData != null && _threatData.IsPublic && _threatScore == 0;
+
     public string SourcePort { get; set; } = "";
     public string DestPort { get; set; } = "";
     public byte[]? RawBytes { get; set; }
@@ -32,7 +79,6 @@ public class PacketInfo : INotifyPropertyChanged
     public string PayloadHashMd5 { get; set; } = "";
     public string PayloadHashSha256 { get; set; } = "";
     public List<LayerNode> LayersTree { get; set; } = new();
-    public ThreatData? ThreatData { get => _threatData; set { _threatData = value; OnPropertyChanged(); } }
     public bool IsPublic { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;

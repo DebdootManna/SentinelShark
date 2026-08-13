@@ -331,17 +331,16 @@ public partial class MainWindow : Window
                             var packet = _packets[index];
                             packet.ThreatData = threat;
                             int vtScore = threat.VtMalicious > 0 ? Math.Min(threat.VtMalicious * 20, 100) : 0;
-                            packet.ThreatScore = Math.Max(threat.AbuseScore, vtScore);
-                            if (packet.ThreatScore > 0)
+                            int score = Math.Max(threat.AbuseScore, vtScore);
+                            if (threat.ShodanVulns != null && threat.ShodanVulns.Count > 0 && score < 50)
                             {
-                                _threatsDetected++;
+                                score = 75;
                             }
-                            else
-                            {
-                                _safePackets++;
-                            }
+                            packet.ThreatScore = score;
                         }
                     }
+
+                    RecalculateThreatCounts();
                     UpdateStats();
 
                     if (_selectedPacket != null && (_selectedPacket.Source == ip || _selectedPacket.Destination == ip))
@@ -352,6 +351,30 @@ public partial class MainWindow : Window
             }
             catch { }
         });
+    }
+
+    private void RecalculateThreatCounts()
+    {
+        int threats = 0;
+        int safe = 0;
+
+        foreach (var pkt in _packets)
+        {
+            if (pkt.ThreatData != null)
+            {
+                if (pkt.ThreatScore >= 20 || pkt.ThreatData.VtMalicious > 0 || pkt.ThreatData.AbuseScore >= 20)
+                {
+                    threats++;
+                }
+                else
+                {
+                    safe++;
+                }
+            }
+        }
+
+        _threatsDetected = threats;
+        _safePackets = safe;
     }
 
     private void QueueManager_OnQueueStatusChanged(int pending, int processing)
