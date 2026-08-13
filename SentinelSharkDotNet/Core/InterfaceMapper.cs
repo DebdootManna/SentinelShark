@@ -37,9 +37,12 @@ public static class InterfaceMapper
         var interfaces = new List<(string id, string description)>();
         try
         {
+            string? tsharkPath = AppConfig.Instance.FindTShark();
+            if (tsharkPath == null) return interfaces;
+
             var startInfo = new ProcessStartInfo
             {
-                FileName = "tshark.exe",
+                FileName = tsharkPath,
                 Arguments = "-D",
                 RedirectStandardOutput = true,
                 UseShellExecute = false,

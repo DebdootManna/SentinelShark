@@ -292,36 +292,39 @@ public partial class MainWindow : Window
 
     private void QueueManager_OnThreatResolved(string ip, ThreatData threat)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.InvokeAsync(() =>
         {
-            if (_ipRowMap.TryGetValue(ip, out var rowIndices))
+            try
             {
-                foreach (var index in rowIndices)
+                if (_ipRowMap.TryGetValue(ip, out var rowIndices))
                 {
-                    if (index >= 0 && index < _packets.Count)
+                    foreach (var index in rowIndices)
                     {
-                        var packet = _packets[index];
-                        packet.ThreatData = threat;
-                        int vtScore = threat.VtMalicious > 0 ? Math.Min(threat.VtMalicious * 20, 100) : 0;
-                        packet.ThreatScore = Math.Max(threat.AbuseScore, vtScore);
-                        if (packet.ThreatScore > 0)
+                        if (index >= 0 && index < _packets.Count)
                         {
-                            _threatsDetected++;
-                        }
-                        else
-                        {
-                            _safePackets++;
+                            var packet = _packets[index];
+                            packet.ThreatData = threat;
+                            int vtScore = threat.VtMalicious > 0 ? Math.Min(threat.VtMalicious * 20, 100) : 0;
+                            packet.ThreatScore = Math.Max(threat.AbuseScore, vtScore);
+                            if (packet.ThreatScore > 0)
+                            {
+                                _threatsDetected++;
+                            }
+                            else
+                            {
+                                _safePackets++;
+                            }
                         }
                     }
-                }
-                UpdateStats();
-                PacketGrid.Items.Refresh();
+                    UpdateStats();
 
-                if (_selectedPacket != null && (_selectedPacket.Source == ip || _selectedPacket.Destination == ip))
-                {
-                    BuildLayerTreeItems(_selectedPacket.LayersTree, _selectedPacket);
+                    if (_selectedPacket != null && (_selectedPacket.Source == ip || _selectedPacket.Destination == ip))
+                    {
+                        BuildLayerTreeItems(_selectedPacket.LayersTree, _selectedPacket);
+                    }
                 }
             }
+            catch { }
         });
     }
 
