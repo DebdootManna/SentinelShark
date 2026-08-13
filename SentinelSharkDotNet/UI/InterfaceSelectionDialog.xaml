@@ -34,12 +34,20 @@
             </Grid>
 
             <!-- Header and Grid -->
-            <StackPanel Grid.Row="1" Margin="24,0,24,0">
-                <TextBlock Text="Select Network Interface for Packet Capture" Foreground="{DynamicResource AccentCyanBrush}" FontSize="16" FontWeight="Bold" FontFamily="{DynamicResource UIFont}" Margin="0,0,0,4"/>
-                <TextBlock Text="Live traffic activity curves below show real-time packet transmission across your network devices (Wireshark-style preview)." Foreground="{DynamicResource TextMutedBrush}" FontSize="12" FontFamily="{DynamicResource UIFont}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+            <Grid Grid.Row="1" Margin="24,0,24,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                <DataGrid x:Name="InterfacesGrid" AutoGenerateColumns="False" HeadersVisibility="Column" 
+                <StackPanel Grid.Row="0">
+                    <TextBlock Text="Select Network Interface for Packet Capture" Foreground="{DynamicResource AccentCyanBrush}" FontSize="16" FontWeight="Bold" FontFamily="{DynamicResource UIFont}" Margin="0,0,0,4"/>
+                    <TextBlock Text="Live traffic activity curves below show real-time packet transmission across your network devices (Wireshark-style preview)." Foreground="{DynamicResource TextMutedBrush}" FontSize="12" FontFamily="{DynamicResource UIFont}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                </StackPanel>
+
+                <DataGrid x:Name="InterfacesGrid" Grid.Row="1" AutoGenerateColumns="False" HeadersVisibility="Column" 
                           CanUserAddRows="False" CanUserDeleteRows="False" CanUserResizeRows="False"
+                          SelectionMode="Single" SelectionUnit="FullRow"
                           GridLinesVisibility="None" Background="Transparent" RowBackground="Transparent"
                           AlternatingRowBackground="{DynamicResource PanelBackgroundBrush}"
                           BorderThickness="0" MouseDoubleClick="InterfacesGrid_MouseDoubleClick"
@@ -68,14 +76,14 @@
                         <DataGridTemplateColumn Header="LIVE TRAFFIC SPARKLINES" Width="1.5*">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <controls:SparklineControl x:Name="Sparkline" Margin="8,0" Loaded="Sparkline_Loaded" Tag="{Binding}"/>
+                                    <controls:SparklineControl x:Name="Sparkline" Margin="8,0" Loaded="Sparkline_Loaded" Tag="{Binding}" IsHitTestVisible="False"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="RATE" Binding="{Binding RateDisplay}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
-            </StackPanel>
+            </Grid>
 
             <!-- Footer -->
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,24">

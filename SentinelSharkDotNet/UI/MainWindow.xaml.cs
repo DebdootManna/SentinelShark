@@ -193,22 +193,30 @@ public partial class MainWindow : Window
 
     private void CaptureEngine_OnPacketReceived(PacketInfo packet)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.InvokeAsync(() =>
         {
-            ProcessSinglePacket(packet);
-            UpdateStats();
+            try
+            {
+                ProcessSinglePacket(packet);
+                UpdateStats();
+            }
+            catch { }
         });
     }
 
     private void CaptureEngine_OnPacketBatchReceived(List<PacketInfo> packets)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.InvokeAsync(() =>
         {
-            foreach (var packet in packets)
+            try
             {
-                ProcessSinglePacket(packet);
+                foreach (var packet in packets)
+                {
+                    ProcessSinglePacket(packet);
+                }
+                UpdateStats();
             }
-            UpdateStats();
+            catch { }
         });
     }
 

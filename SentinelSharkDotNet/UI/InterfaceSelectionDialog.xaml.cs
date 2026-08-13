@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,17 +17,37 @@ namespace SentinelSharkDotNet.UI;
 public partial class InterfaceSelectionDialog : Window
 {
     public string? SelectedInterface { get; private set; }
-    private DispatcherTimer _timer;
+    private DispatcherTimer? _timer;
     private List<InterfaceInfo> _interfaces = new();
     private Dictionary<string, long> _previousBytes = new();
     private Dictionary<string, SparklineControl> _sparklines = new();
 
-    public class InterfaceInfo
+    public class InterfaceInfo : INotifyPropertyChanged
     {
+        private string _rateDisplay = "0 KB/s";
+
         public string FriendlyName { get; set; } = string.Empty;
         public string IpAddress { get; set; } = string.Empty;
-        public string RateDisplay { get; set; } = "0 KB/s";
         public string Id { get; set; } = string.Empty;
+
+        public string RateDisplay
+        {
+            get => _rateDisplay;
+            set
+            {
+                if (_rateDisplay != value)
+                {
+                    _rateDisplay = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string? name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
     }
 
     public InterfaceSelectionDialog()
@@ -37,35 +59,59 @@ public partial class InterfaceSelectionDialog : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces()
-            .Where(ni => ni.OperationalStatus == OperationalStatus.Up && 
-                         ni.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-            .ToList();
-
-        foreach (var ni in networkInterfaces)
+        try
         {
-            var ipProps = ni.GetIPProperties();
-            var ipv4 = ipProps.UnicastAddresses.FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-            string ipAddress = ipv4 != null ? ipv4.Address.ToString() : "N/A";
+            var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                             ni.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .ToList();
 
-            _interfaces.Add(new InterfaceInfo
+            foreach (var ni in networkInterfaces)
             {
-                Id = ni.Id,
-                FriendlyName = ni.Name,
-                IpAddress = ipAddress
-            });
-            
-            _previousBytes[ni.Id] = ni.GetIPv4Statistics().BytesReceived + ni.GetIPv4Statistics().BytesSent;
+                string ipAddress = "N/A";
+                try
+                {
+                    var ipProps = ni.GetIPProperties();
+                    var ipv4 = ipProps.UnicastAddresses.FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                    if (ipv4 != null) ipAddress = ipv4.Address.ToString();
+                }
+                catch { }
+
+                _interfaces.Add(new InterfaceInfo
+                {
+                    Id = ni.Id,
+                    FriendlyName = ni.Name,
+                    IpAddress = ipAddress
+                });
+                
+                try
+                {
+                    var stats = ni.GetIPStatistics();
+                    _previousBytes[ni.Id] = stats.BytesReceived + stats.BytesSent;
+                }
+                catch
+                {
+                    _previousBytes[ni.Id] = 0;
+                }
+            }
+
+            InterfacesGrid.ItemsSource = _interfaces;
+            if (_interfaces.Count > 0)
+            {
+                InterfacesGrid.SelectedIndex = 0;
+            }
+
+            _timer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(300)
+            };
+            _timer.Tick += Timer_Tick;
+            _timer.Start();
         }
-
-        InterfacesGrid.ItemsSource = _interfaces;
-
-        _timer = new DispatcherTimer
+        catch (Exception ex)
         {
-            Interval = TimeSpan.FromMilliseconds(300)
-        };
-        _timer.Tick += Timer_Tick;
-        _timer.Start();
+            MessageBox.Show($"Error enumerating network interfaces: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
     
     private void OnClosed(object? sender, EventArgs e)
@@ -75,30 +121,39 @@ public partial class InterfaceSelectionDialog : Window
 
     private void Timer_Tick(object? sender, EventArgs e)
     {
-        var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
-        foreach (var ni in networkInterfaces)
+        try
         {
-            if (!_previousBytes.ContainsKey(ni.Id)) continue;
-            
-            long currentBytes = ni.GetIPv4Statistics().BytesReceived + ni.GetIPv4Statistics().BytesSent;
-            long delta = currentBytes - _previousBytes[ni.Id];
-            _previousBytes[ni.Id] = currentBytes;
-
-            double kbps = (delta / 1024.0) * (1000.0 / 300.0);
-
-            var info = _interfaces.FirstOrDefault(i => i.Id == ni.Id);
-            if (info != null)
+            var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+            foreach (var ni in networkInterfaces)
             {
-                info.RateDisplay = kbps > 1024 ? $"{kbps / 1024.0:F2} MB/s" : $"{kbps:F1} KB/s";
-            }
+                if (!_previousBytes.ContainsKey(ni.Id)) continue;
+                
+                long currentBytes = 0;
+                try
+                {
+                    var stats = ni.GetIPStatistics();
+                    currentBytes = stats.BytesReceived + stats.BytesSent;
+                }
+                catch { continue; }
 
-            if (_sparklines.TryGetValue(ni.Id, out var sparkline))
-            {
-                sparkline.AddValue(kbps);
+                long delta = currentBytes - _previousBytes[ni.Id];
+                _previousBytes[ni.Id] = currentBytes;
+
+                double kbps = Math.Max(0, (delta / 1024.0) * (1000.0 / 300.0));
+
+                var info = _interfaces.FirstOrDefault(i => i.Id == ni.Id);
+                if (info != null)
+                {
+                    info.RateDisplay = kbps > 1024 ? $"{kbps / 1024.0:F2} MB/s" : $"{kbps:F1} KB/s";
+                }
+
+                if (_sparklines.TryGetValue(ni.Id, out var sparkline))
+                {
+                    sparkline.AddValue(kbps);
+                }
             }
         }
-        
-        InterfacesGrid.Items.Refresh();
+        catch { }
     }
 
     private void Sparkline_Loaded(object sender, RoutedEventArgs e)
@@ -111,7 +166,11 @@ public partial class InterfaceSelectionDialog : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        DragMove();
+        try
+        {
+            DragMove();
+        }
+        catch { }
     }
 
     private void StartBtn_Click(object sender, RoutedEventArgs e)
