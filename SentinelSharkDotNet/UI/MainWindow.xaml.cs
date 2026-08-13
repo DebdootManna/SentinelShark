@@ -52,6 +52,7 @@ public partial class MainWindow : Window
 
         LoadInterfaces();
         CheckTSharkStatus();
+        UpdateApiStatusIndicators();
 
         this.ContentRendered += MainWindow_ContentRendered;
     }
@@ -184,7 +185,31 @@ public partial class MainWindow : Window
     {
         var dialog = new ApiSettingsDialog();
         dialog.Owner = this;
-        dialog.ShowDialog();
+        if (dialog.ShowDialog() == true)
+        {
+            UpdateApiStatusIndicators();
+        }
+    }
+
+    private void UpdateApiStatusIndicators()
+    {
+        var config = AppConfig.Instance;
+
+        bool vtHasKey = !string.IsNullOrWhiteSpace(config.VirusTotalApiKey);
+        VtApiStatusText.Text = vtHasKey ? "Connected" : "Key Missing";
+        VtApiStatusText.Foreground = vtHasKey ? (Brush)FindResource("SafeGreenBrush") : (Brush)FindResource("TextMutedBrush");
+
+        bool abuseHasKey = !string.IsNullOrWhiteSpace(config.AbuseIpDbApiKey);
+        AbuseApiStatusText.Text = abuseHasKey ? "Connected" : "Key Missing";
+        AbuseApiStatusText.Foreground = abuseHasKey ? (Brush)FindResource("SafeGreenBrush") : (Brush)FindResource("TextMutedBrush");
+
+        bool shodanHasKey = !string.IsNullOrWhiteSpace(config.ShodanApiKey);
+        ShodanApiStatusText.Text = shodanHasKey ? "Connected (Host API)" : "Key Missing";
+        ShodanApiStatusText.Foreground = shodanHasKey ? (Brush)FindResource("SafeGreenBrush") : (Brush)FindResource("TextMutedBrush");
+
+        bool ipinfoHasKey = !string.IsNullOrWhiteSpace(config.IpInfoApiKey);
+        IpInfoApiStatusText.Text = ipinfoHasKey ? "Connected" : "Free Tier Active";
+        IpInfoApiStatusText.Foreground = (Brush)FindResource("SafeGreenBrush");
     }
 
     private void InterfaceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -352,52 +377,89 @@ public partial class MainWindow : Window
     {
         PacketDetailTree.Items.Clear();
 
-        if (packet?.ThreatData != null)
+        if (packet != null)
         {
-            var threat = packet.ThreatData;
-            string targetIp = !string.IsNullOrEmpty(threat.Ip) ? threat.Ip : (!string.IsNullOrEmpty(packet.Destination) ? packet.Destination : packet.Source);
+            string targetIp = !string.IsNullOrEmpty(packet.Destination) && packet.Destination != "127.0.0.1" ? packet.Destination : packet.Source;
+            bool isPrivate = targetIp.StartsWith("10.") || targetIp.StartsWith("192.168.") || targetIp.StartsWith("172.") || targetIp == "127.0.0.1" || targetIp == "::1";
 
-            // 1. Threat Intelligence Summary Node
-            string nodeTitle = $"Threat Intelligence Summary [IP: {targetIp}] - Abuse: {threat.AbuseScore}%, VT Malicious: {threat.VtMalicious}";
-            bool isThreat = packet.ThreatScore > 0 || threat.VtMalicious > 0 || threat.AbuseScore > 20;
+            if (packet.ThreatData != null)
+            {
+                var threat = packet.ThreatData;
+                targetIp = !string.IsNullOrEmpty(threat.Ip) ? threat.Ip : targetIp;
 
-            var threatNode = new TreeViewItem 
-            { 
-                Header = nodeTitle, 
-                FontWeight = FontWeights.Bold,
-                Foreground = isThreat ? (Brush)FindResource("CriticalRedBrush") : (Brush)FindResource("SafeGreenBrush"),
-                IsExpanded = true 
-            };
+                // 1. Threat Intelligence Summary Node
+                string nodeTitle = $"Threat Intelligence Summary [IP: {targetIp}] - Abuse: {threat.AbuseScore}%, VT Malicious: {threat.VtMalicious}";
+                bool isThreat = packet.ThreatScore > 0 || threat.VtMalicious > 0 || threat.AbuseScore > 20;
 
-            threatNode.Items.Add(new TreeViewItem { Header = $"AbuseIPDB Score: {threat.AbuseScore}% ({threat.ReportsCount} total reports)" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"VirusTotal Detections: {threat.VtMalicious} Malicious, {threat.VtSuspicious} Suspicious" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"Geographic Country Code: {(!string.IsNullOrEmpty(threat.Country) ? threat.Country : "N/A")}" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"Associated Domain: {(!string.IsNullOrEmpty(threat.Domain) ? threat.Domain : "N/A")}" });
-            threatNode.Items.Add(new TreeViewItem { Header = $"Cache Status: {(threat.IsCached ? "In-Memory Cache" : "Live API Lookup")}" });
+                var threatNode = new TreeViewItem 
+                { 
+                    Header = nodeTitle, 
+                    FontWeight = FontWeights.Bold,
+                    Foreground = isThreat ? (Brush)FindResource("CriticalRedBrush") : (Brush)FindResource("SafeGreenBrush"),
+                    IsExpanded = true 
+                };
 
-            PacketDetailTree.Items.Add(threatNode);
+                threatNode.Items.Add(new TreeViewItem { Header = $"AbuseIPDB Score: {threat.AbuseScore}% ({threat.ReportsCount} total reports)" });
+                threatNode.Items.Add(new TreeViewItem { Header = $"VirusTotal Detections: {threat.VtMalicious} Malicious, {threat.VtSuspicious} Suspicious" });
+                threatNode.Items.Add(new TreeViewItem { Header = $"Geographic Country Code: {(!string.IsNullOrEmpty(threat.Country) ? threat.Country : "N/A")}" });
+                threatNode.Items.Add(new TreeViewItem { Header = $"Associated Domain: {(!string.IsNullOrEmpty(threat.Domain) ? threat.Domain : "N/A")}" });
+                threatNode.Items.Add(new TreeViewItem { Header = $"Cache Status: {(threat.IsCached ? "In-Memory Cache" : "Live API Lookup")}" });
 
-            // 2. IPinfo Details & Geolocation Node
-            var ipinfoNode = new TreeViewItem 
-            { 
-                Header = "IPinfo Details & Geolocation", 
-                FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
-                IsExpanded = true 
-            };
+                PacketDetailTree.Items.Add(threatNode);
 
-            ipinfoNode.Items.Add(new TreeViewItem { Header = $"ip: {targetIp}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoCity)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"city: {threat.IpInfoCity}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoRegion)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"region: {threat.IpInfoRegion}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoCountry)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"country: {threat.IpInfoCountry}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoLoc)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"loc: {threat.IpInfoLoc}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoOrg)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"org: {threat.IpInfoOrg}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoPostal)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"postal: {threat.IpInfoPostal}" });
-            if (!string.IsNullOrEmpty(threat.IpInfoTimezone)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"timezone: {threat.IpInfoTimezone}" });
-            
-            ipinfoNode.Items.Add(new TreeViewItem { Header = "Shodan Details: (No Public Ports / Unindexed Host)" });
+                // 2. IPinfo Details & Geolocation Node
+                var ipinfoNode = new TreeViewItem 
+                { 
+                    Header = "IPinfo Details & Geolocation", 
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                    IsExpanded = true 
+                };
 
-            PacketDetailTree.Items.Add(ipinfoNode);
+                ipinfoNode.Items.Add(new TreeViewItem { Header = $"ip: {targetIp}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoCity)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"city: {threat.IpInfoCity}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoRegion)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"region: {threat.IpInfoRegion}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoCountry)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"country: {threat.IpInfoCountry}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoLoc)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"loc: {threat.IpInfoLoc}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoOrg)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"org: {threat.IpInfoOrg}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoPostal)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"postal: {threat.IpInfoPostal}" });
+                if (!string.IsNullOrEmpty(threat.IpInfoTimezone)) ipinfoNode.Items.Add(new TreeViewItem { Header = $"timezone: {threat.IpInfoTimezone}" });
+                
+                ipinfoNode.Items.Add(new TreeViewItem { Header = "Shodan Details: (No Public Ports / Unindexed Host)" });
+
+                PacketDetailTree.Items.Add(ipinfoNode);
+            }
+            else if (isPrivate)
+            {
+                var threatNode = new TreeViewItem 
+                { 
+                    Header = $"Threat Intelligence Summary [IP: {targetIp}] - Local Network IP (Private Range)", 
+                    FontWeight = FontWeights.Bold,
+                    Foreground = (Brush)FindResource("SafeGreenBrush"),
+                    IsExpanded = true 
+                };
+
+                threatNode.Items.Add(new TreeViewItem { Header = "Classification: Private / Internal Network Address (RFC 1918)" });
+                threatNode.Items.Add(new TreeViewItem { Header = "Public Threat Scan: Not applicable for private IP addresses" });
+                threatNode.Items.Add(new TreeViewItem { Header = "Geolocation: Local Area Network (LAN)" });
+
+                PacketDetailTree.Items.Add(threatNode);
+
+                var ipinfoNode = new TreeViewItem 
+                { 
+                    Header = "IPinfo Details & Geolocation", 
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                    IsExpanded = true 
+                };
+
+                ipinfoNode.Items.Add(new TreeViewItem { Header = $"ip: {targetIp}" });
+                ipinfoNode.Items.Add(new TreeViewItem { Header = "range: Private IP Address (RFC 1918)" });
+                ipinfoNode.Items.Add(new TreeViewItem { Header = "org: Local Area Network (Intranet)" });
+                ipinfoNode.Items.Add(new TreeViewItem { Header = "Shodan Details: (No Public Ports / Unindexed Host)" });
+
+                PacketDetailTree.Items.Add(ipinfoNode);
+            }
         }
 
         foreach (var layer in layers)

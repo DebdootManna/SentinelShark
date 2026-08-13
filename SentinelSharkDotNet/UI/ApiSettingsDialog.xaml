@@ -35,16 +35,16 @@
             <!-- Form -->
             <StackPanel Grid.Row="1" Margin="24,0,24,0">
                 <TextBlock Text="AbuseIPDB API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,4"/>
-                <TextBox x:Name="TxtAbuseIPDB" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                <PasswordBox x:Name="TxtAbuseIPDB" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
 
                 <TextBlock Text="VirusTotal API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
-                <TextBox x:Name="TxtVirusTotal" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                <PasswordBox x:Name="TxtVirusTotal" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
 
                 <TextBlock Text="IPinfo API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
-                <TextBox x:Name="TxtIPinfo" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                <PasswordBox x:Name="TxtIPinfo" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
 
                 <TextBlock Text="Shodan API Key" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,16,0,4"/>
-                <TextBox x:Name="TxtShodan" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
+                <PasswordBox x:Name="TxtShodan" Background="{DynamicResource InputBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderBrush}" Padding="4" Height="28"/>
 
                 <Grid Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>

@@ -18,10 +18,10 @@ public partial class ApiSettingsDialog : Window
         var config = AppConfig.Instance;
         if (config != null)
         {
-            TxtAbuseIPDB.Text = config.AbuseIpDbApiKey;
-            TxtVirusTotal.Text = config.VirusTotalApiKey;
-            TxtIPinfo.Text = config.IpInfoApiKey;
-            TxtShodan.Text = config.ShodanApiKey;
+            TxtAbuseIPDB.Password = config.AbuseIpDbApiKey;
+            TxtVirusTotal.Password = config.VirusTotalApiKey;
+            TxtIPinfo.Password = config.IpInfoApiKey;
+            TxtShodan.Password = config.ShodanApiKey;
             TxtCacheTTL.Text = config.CacheTtlHours.ToString();
             TxtMaxRequests.Text = config.MaxRequestsPerMinute.ToString();
             ChkMockMode.IsChecked = config.MockMode;
@@ -38,10 +38,10 @@ public partial class ApiSettingsDialog : Window
         var config = AppConfig.Instance;
         if (config != null)
         {
-            config.AbuseIpDbApiKey = TxtAbuseIPDB.Text;
-            config.VirusTotalApiKey = TxtVirusTotal.Text;
-            config.IpInfoApiKey = TxtIPinfo.Text;
-            config.ShodanApiKey = TxtShodan.Text;
+            config.AbuseIpDbApiKey = TxtAbuseIPDB.Password;
+            config.VirusTotalApiKey = TxtVirusTotal.Password;
+            config.IpInfoApiKey = TxtIPinfo.Password;
+            config.ShodanApiKey = TxtShodan.Password;
             
             if (int.TryParse(TxtCacheTTL.Text, out int ttl))
             {
