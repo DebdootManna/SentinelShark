@@ -26,10 +26,17 @@ public class CaptureEngine
 
     public void StartCapture(string interfaceName, string bpfFilter = "")
     {
+        if (AppConfig.Instance.MockMode)
+        {
+            StartMockCapture();
+            return;
+        }
+
         string? tsharkPath = AppConfig.Instance.FindTShark();
         if (tsharkPath == null)
         {
-            ErrorOccurred?.Invoke("TShark not found! Please install Wireshark with Npcap from https://www.wireshark.org/download.html");
+            StatusChanged?.Invoke("TShark not found. Switching to Mock Capture mode.");
+            StartMockCapture();
             return;
         }
         _currentInterface = interfaceName;
@@ -40,7 +47,8 @@ public class CaptureEngine
             _cts = new CancellationTokenSource();
             _isCapturing = true;
 
-            string args = $"-i \"{interfaceName}\" -l -T json -x";
+            string tsharkIface = InterfaceMapper.MapToTSharkId(interfaceName);
+            string args = $"-i \"{tsharkIface}\" -l -T json -x";
             if (!string.IsNullOrEmpty(_bpfFilter))
             {
                 args += $" -f \"{_bpfFilter}\"";
@@ -59,7 +67,8 @@ public class CaptureEngine
             _tsharkProcess = Process.Start(startInfo);
             if (_tsharkProcess == null)
             {
-                ErrorOccurred?.Invoke("Failed to start tshark process.");
+                StatusChanged?.Invoke("Failed to start tshark process. Switching to Mock Capture mode.");
+                StartMockCapture();
                 return;
             }
 
@@ -67,11 +76,21 @@ public class CaptureEngine
 
             Task.Run(() => ReadTsharkOutput(_tsharkProcess.StandardOutput, _cts.Token), _cts.Token);
             Task.Run(() => ReadTsharkError(_tsharkProcess.StandardError, _cts.Token), _cts.Token);
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(500);
+                if (_tsharkProcess != null && _tsharkProcess.HasExited)
+                {
+                    StatusChanged?.Invoke($"TShark process exited. Switching to Mock Capture mode.");
+                    StartMockCapture();
+                }
+            }, _cts.Token);
         }
         catch (Exception ex)
         {
-            ErrorOccurred?.Invoke($"Error starting capture: {ex.Message}. Make sure Wireshark/Npcap is installed.");
-            _isCapturing = false;
+            StatusChanged?.Invoke($"Error starting capture: {ex.Message}. Switching to Mock Capture mode.");
+            StartMockCapture();
         }
     }
 
@@ -134,27 +153,40 @@ public class CaptureEngine
 
             while (!_cts.Token.IsCancellationRequested)
             {
-                await Task.Delay(random.Next(20, 40), _cts.Token);
+                try
+                {
+                    await Task.Delay(random.Next(20, 40), _cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
 
                 byte[] raw = new byte[random.Next(64, 1500)];
                 random.NextBytes(raw);
                 var (hex, ascii) = PacketParser.FormatHexDump(raw);
                 var (md5, sha256) = PacketParser.CalculatePayloadHash(raw);
 
+                string[] mockProtos = new[] { "TCP", "UDP", "DNS", "TLS", "HTTP", "HTTPS", "SSH", "ICMP", "ARP", "QUIC" };
+                string proto = mockProtos[random.Next(mockProtos.Length)];
+                int threat = random.NextDouble() < 0.08 ? random.Next(45, 99) : 0;
+
                 var pkt = new PacketInfo
                 {
                     No = packetNumber++,
                     Time = DateTime.Now.ToString("HH:mm:ss.ffffff"),
                     Source = $"192.168.1.{random.Next(1, 255)}",
-                    Destination = $"10.0.0.{random.Next(1, 255)}",
-                    Protocol = random.Next(0, 2) == 0 ? "TCP" : "UDP",
+                    Destination = threat > 0 ? $"{random.Next(1, 220)}.{random.Next(1, 255)}.{random.Next(1, 255)}.{random.Next(1, 255)}" : $"10.0.0.{random.Next(1, 255)}",
+                    Protocol = proto,
                     Length = raw.Length,
-                    Info = $"Mock packet {packetNumber}",
+                    Info = threat > 0 ? $"Port scan / SYN flood candidate [Threat Score: {threat}%]" : $"{proto} data packet #{packetNumber}",
+                    ThreatScore = threat,
                     RawBytes = raw,
                     HexDump = hex,
                     AsciiDump = ascii,
                     PayloadHashMd5 = md5,
-                    PayloadHashSha256 = sha256
+                    PayloadHashSha256 = sha256,
+                    IsPublic = threat > 0
                 };
 
                 PacketReceived?.Invoke(pkt);
@@ -238,21 +270,28 @@ public class CaptureEngine
                         string jsonString = jsonBuilder.ToString();
                         jsonBuilder.Clear();
 
-                        if (jsonString.TrimStart().StartsWith("{"))
+                        int firstBrace = jsonString.IndexOf('{');
+                        int lastBrace = jsonString.LastIndexOf('}');
+
+                        if (firstBrace >= 0 && lastBrace > firstBrace)
                         {
+                            string objectJson = jsonString.Substring(firstBrace, lastBrace - firstBrace + 1);
                             try
                             {
-                                using var doc = JsonDocument.Parse(jsonString);
+                                using var doc = JsonDocument.Parse(objectJson);
                                 var pkt = PacketParser.ParseTSharkJsonPacket(doc.RootElement, packetNumber++);
-                                PacketReceived?.Invoke(pkt);
-                                batch.Add(pkt);
-
-                                if (batch.Count >= 20 || (DateTime.UtcNow - lastFlush).TotalMilliseconds > 40)
+                                if (pkt != null)
                                 {
-                                    var batchCopy = new List<PacketInfo>(batch);
-                                    Application.Current?.Dispatcher.InvokeAsync(() => PacketBatchReceived?.Invoke(batchCopy));
-                                    batch.Clear();
-                                    lastFlush = DateTime.UtcNow;
+                                    PacketReceived?.Invoke(pkt);
+                                    batch.Add(pkt);
+
+                                    if (batch.Count >= 20 || (DateTime.UtcNow - lastFlush).TotalMilliseconds > 40)
+                                    {
+                                        var batchCopy = new List<PacketInfo>(batch);
+                                        Application.Current?.Dispatcher.InvokeAsync(() => PacketBatchReceived?.Invoke(batchCopy));
+                                        batch.Clear();
+                                        lastFlush = DateTime.UtcNow;
+                                    }
                                 }
                             }
                             catch (Exception)

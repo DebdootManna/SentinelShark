@@ -97,25 +97,47 @@ public static class PacketParser
             }
 
             // Raw bytes
+            string hexStr = "";
             if (layers.TryGetProperty("frame_raw", out JsonElement frameRaw))
             {
-                string hexStr = frameRaw.GetString() ?? "";
-                if (hexStr.Length % 2 != 0) hexStr = "0" + hexStr;
-                byte[] raw = new byte[hexStr.Length / 2];
-                for (int i = 0; i < raw.Length; i++)
+                if (frameRaw.ValueKind == JsonValueKind.Array && frameRaw.GetArrayLength() > 0)
                 {
-                    raw[i] = Convert.ToByte(hexStr.Substring(i * 2, 2), 16);
+                    var first = frameRaw[0];
+                    hexStr = first.ValueKind == JsonValueKind.String ? first.GetString() ?? "" : first.GetRawText().Trim('"');
                 }
-                packetInfo.RawBytes = raw;
-
-                var (hexDump, asciiDump) = FormatHexDump(raw);
-                packetInfo.HexDump = hexDump;
-                packetInfo.AsciiDump = asciiDump;
-
-                var (md5, sha256) = CalculatePayloadHash(raw);
-                packetInfo.PayloadHashMd5 = md5;
-                packetInfo.PayloadHashSha256 = sha256;
+                else if (frameRaw.ValueKind == JsonValueKind.String)
+                {
+                    hexStr = frameRaw.GetString() ?? "";
+                }
             }
+
+            if (!string.IsNullOrEmpty(hexStr))
+            {
+                if (hexStr.Length % 2 != 0) hexStr = "0" + hexStr;
+                try
+                {
+                    byte[] raw = new byte[hexStr.Length / 2];
+                    for (int i = 0; i < raw.Length; i++)
+                    {
+                        raw[i] = Convert.ToByte(hexStr.Substring(i * 2, 2), 16);
+                    }
+                    packetInfo.RawBytes = raw;
+
+                    var (hexDump, asciiDump) = FormatHexDump(raw);
+                    packetInfo.HexDump = hexDump;
+                    packetInfo.AsciiDump = asciiDump;
+
+                    var (md5, sha256) = CalculatePayloadHash(raw);
+                    packetInfo.PayloadHashMd5 = md5;
+                    packetInfo.PayloadHashSha256 = sha256;
+                }
+                catch
+                {
+                    // Ignore hex conversion error
+                }
+            }
+
+            packetInfo.LayersTree = BuildLayersTree(layers, packetInfo.Source, packetInfo.Destination, packetInfo.Length, packetInfo.Time);
         }
 
         if (string.IsNullOrEmpty(packetInfo.Source)) packetInfo.Source = "Unknown";

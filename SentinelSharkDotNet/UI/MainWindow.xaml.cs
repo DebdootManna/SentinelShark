@@ -94,9 +94,23 @@ public partial class MainWindow : Window
     {
         _startupTimer.Stop();
         
-        // Mock showing dialog since InterfaceSelectionDialog is not implemented in this snippet
-        // var dialog = new InterfaceSelectionDialog();
-        // if (dialog.ShowDialog() == true) { ... }
+        var dialog = new InterfaceSelectionDialog();
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true)
+        {
+            if (!string.IsNullOrEmpty(dialog.SelectedInterface))
+            {
+                foreach (var item in InterfaceCombo.Items)
+                {
+                    if (item != null && (item.ToString() == dialog.SelectedInterface || item.ToString()!.Contains(dialog.SelectedInterface)))
+                    {
+                        InterfaceCombo.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            StartBtn_Click(this, new RoutedEventArgs());
+        }
     }
 
     private void StartBtn_Click(object sender, RoutedEventArgs e)
@@ -105,6 +119,11 @@ public partial class MainWindow : Window
         {
             string filter = BpfFilterBox.Text;
             _captureEngine.StartCapture(selectedInterface, filter);
+            _queueManager.Start();
+        }
+        else
+        {
+            _captureEngine.StartMockCapture();
             _queueManager.Start();
         }
     }
@@ -162,8 +181,9 @@ public partial class MainWindow : Window
 
     private void ApiKeysBtn_Click(object sender, RoutedEventArgs e)
     {
-        // var dialog = new ApiSettingsDialog();
-        // dialog.ShowDialog();
+        var dialog = new ApiSettingsDialog();
+        dialog.Owner = this;
+        dialog.ShowDialog();
     }
 
     private void InterfaceCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

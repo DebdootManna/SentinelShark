@@ -84,35 +84,77 @@
                 <ColumnDefinition Width="300" />
             </Grid.ColumnDefinitions>
 
-            <!-- Packet DataGrid -->
             <DataGrid x:Name="PacketGrid" Grid.Column="0" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column" SelectionChanged="PacketGrid_SelectionChanged" Background="{StaticResource PanelBackgroundBrush}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="No." Binding="{Binding Number}" Width="60">
+                    <DataGridTextColumn Header="NO." Binding="{Binding No}" Width="60">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="HorizontalAlignment" Value="Right"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="Time" Binding="{Binding TimeString}" Width="100"/>
-                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="140"/>
-                    <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="140"/>
-                    <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80"/>
-                    <DataGridTextColumn Header="Length" Binding="{Binding Length}" Width="70">
+                    <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="100">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="140">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="DESTINATION" Binding="{Binding Destination}" Width="140">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="PROTOCOL" Binding="{Binding Protocol}" Width="80">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentCyanBrush}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="LENGTH" Binding="{Binding Length}" Width="70">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="HorizontalAlignment" Value="Right"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="Info" Binding="{Binding Info}" Width="*"/>
-                    <DataGridTextColumn Header="Threat Score" Binding="{Binding ThreatScore}" Width="120">
+                    <DataGridTextColumn Header="INFO" Binding="{Binding Info}" Width="*">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
-                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
+                    <DataGridTemplateColumn Header="THREAT SCORE" Width="120">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border x:Name="BadgeBorder" CornerRadius="10" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#1F22C55E" BorderBrush="#4022C55E" BorderThickness="1">
+                                    <TextBlock x:Name="BadgeText" Text="0% Safe" Foreground="#FF4ADE80" FontSize="11" FontFamily="{StaticResource MonoFont}" FontWeight="Medium"/>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding ThreatScore}" Value="0">
+                                        <Setter TargetName="BadgeBorder" Property="Background" Value="#1F22C55E"/>
+                                        <Setter TargetName="BadgeBorder" Property="BorderBrush" Value="#4022C55E"/>
+                                        <Setter TargetName="BadgeText" Property="Text" Value="0% Safe"/>
+                                        <Setter TargetName="BadgeText" Property="Foreground" Value="#FF4ADE80"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
 

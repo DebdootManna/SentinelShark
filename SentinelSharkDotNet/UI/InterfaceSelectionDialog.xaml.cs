@@ -118,7 +118,7 @@ public partial class InterfaceSelectionDialog : Window
     {
         if (InterfacesGrid.SelectedItem is InterfaceInfo info)
         {
-            SelectedInterface = info.Id;
+            SelectedInterface = info.FriendlyName;
             DialogResult = true;
             Close();
         }
