@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Data;
 using System.Text;
 using SentinelSharkDotNet.Models;
 using SentinelSharkDotNet.Core;
@@ -269,12 +270,36 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(ip) || ip == "127.0.0.1" || ip == "::1" || ip.StartsWith("192.168.") || ip.StartsWith("10.") || ip.StartsWith("172.16."))
             return;
 
-        if (!_ipRowMap.ContainsKey(ip))
+        var cached = ThreatCache.Instance.Get(ip);
+        if (cached != null)
         {
-            _ipRowMap[ip] = new List<int>();
-            _queueManager.EnqueueIp(ip);
+            if (rowIndex >= 0 && rowIndex < _packets.Count)
+            {
+                var packet = _packets[rowIndex];
+                packet.ThreatData = cached;
+                int vtScore = cached.VtMalicious > 0 ? Math.Min(cached.VtMalicious * 20, 100) : 0;
+                int score = Math.Max(cached.AbuseScore, vtScore);
+                if (cached.ShodanVulns != null && cached.ShodanVulns.Count > 0 && score < 50)
+                {
+                    score = 75;
+                }
+                packet.ThreatScore = score;
+
+                if (score >= 50 || cached.VtMalicious > 0)
+                    _threatsDetected++;
+                else if (score == 0)
+                    _safePackets++;
+            }
         }
-        _ipRowMap[ip].Add(rowIndex);
+        else
+        {
+            if (!_ipRowMap.ContainsKey(ip))
+            {
+                _ipRowMap[ip] = new List<int>();
+                _queueManager.EnqueueIp(ip);
+            }
+            _ipRowMap[ip].Add(rowIndex);
+        }
     }
 
     private void CaptureEngine_OnStatusChanged(string message)
@@ -353,6 +378,86 @@ public partial class MainWindow : Window
         });
     }
 
+    private void BpfFilterBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyFilter(BpfFilterBox.Text);
+    }
+
+    private void ApplyFilter(string query)
+    {
+        var view = CollectionViewSource.GetDefaultView(_packets);
+        if (view == null) return;
+
+        string trimmed = query.Trim();
+        FilterIndicator.Text = string.IsNullOrEmpty(trimmed) ? "No Filter" : trimmed;
+
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            view.Filter = null;
+            return;
+        }
+
+        string lowerQuery = trimmed.ToLower();
+        string[] tokens = lowerQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        view.Filter = obj =>
+        {
+            if (obj is PacketInfo pkt)
+            {
+                return MatchesFilter(pkt, tokens, lowerQuery);
+            }
+            return false;
+        };
+    }
+
+    private bool MatchesFilter(PacketInfo pkt, string[] tokens, string fullQuery)
+    {
+        if (tokens.Length == 1 && pkt.Protocol.Equals(fullQuery, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        foreach (var token in tokens)
+        {
+            if (token.StartsWith("ip.src=="))
+            {
+                string target = token.Substring(8).Trim();
+                if (!pkt.Source.Equals(target, StringComparison.OrdinalIgnoreCase)) return false;
+                continue;
+            }
+            if (token.StartsWith("ip.dst=="))
+            {
+                string target = token.Substring(8).Trim();
+                if (!pkt.Destination.Equals(target, StringComparison.OrdinalIgnoreCase)) return false;
+                continue;
+            }
+            if (token.StartsWith("ip.addr=="))
+            {
+                string target = token.Substring(9).Trim();
+                if (!pkt.Source.Equals(target, StringComparison.OrdinalIgnoreCase) &&
+                    !pkt.Destination.Equals(target, StringComparison.OrdinalIgnoreCase)) return false;
+                continue;
+            }
+            if (token.StartsWith("port==") || token.StartsWith("tcp.port==") || token.StartsWith("udp.port=="))
+            {
+                string target = token.Substring(token.IndexOf("==") + 2).Trim();
+                if (pkt.SourcePort != target && pkt.DestPort != target) return false;
+                continue;
+            }
+
+            bool tokenMatched = 
+                pkt.Source.ToLower().Contains(token) ||
+                pkt.Destination.ToLower().Contains(token) ||
+                pkt.Protocol.ToLower().Contains(token) ||
+                pkt.Info.ToLower().Contains(token) ||
+                pkt.No.ToString().Contains(token) ||
+                pkt.SourcePort.Contains(token) ||
+                pkt.DestPort.Contains(token);
+
+            if (!tokenMatched) return false;
+        }
+
+        return true;
+    }
+
     private void RecalculateThreatCounts()
     {
         int threats = 0;
@@ -362,11 +467,11 @@ public partial class MainWindow : Window
         {
             if (pkt.ThreatData != null)
             {
-                if (pkt.ThreatScore >= 20 || pkt.ThreatData.VtMalicious > 0 || pkt.ThreatData.AbuseScore >= 20)
+                if (pkt.ThreatScore >= 50 || pkt.ThreatData.VtMalicious > 0)
                 {
                     threats++;
                 }
-                else
+                else if (pkt.ThreatScore == 0)
                 {
                     safe++;
                 }

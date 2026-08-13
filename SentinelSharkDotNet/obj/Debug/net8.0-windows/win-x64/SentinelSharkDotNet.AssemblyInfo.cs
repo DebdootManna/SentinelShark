@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("SentinelShark - Network Intrusion Detection and Analysis System")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9884a91cbd6320c2f9dfec5b40591fe6cca1333f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7a810fbcf85b41554a79085290cb2e3fcf8e985b")]
 [assembly: System.Reflection.AssemblyProductAttribute("SentinelShark")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SentinelShark")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

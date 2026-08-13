@@ -61,7 +61,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="🔍" VerticalAlignment="Center" Margin="8,0,4,0" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox x:Name="BpfFilterBox" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <TextBox x:Name="BpfFilterBox" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0" TextChanged="BpfFilterBox_TextChanged">
                         <TextBox.Style>
                             <Style TargetType="TextBox">
                                 <Style.Triggers>
