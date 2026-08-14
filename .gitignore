@@ -81,7 +81,6 @@ htmlcov/
 # Logs
 *.log
 logs/
-.DS_Store
 
 # .NET Build Artifacts
 bin/
