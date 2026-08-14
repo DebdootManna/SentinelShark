@@ -1,2 +1,0 @@
-C:\Users\Win10\Desktop\SentinelShark\dist\SentinelShark.pdb
-C:\Users\Win10\Desktop\SentinelShark\dist\SentinelShark.exe

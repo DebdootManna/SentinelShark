@@ -683,7 +683,11 @@ public partial class MainWindow : Window
         var topProtocols = _protocolCounts
             .OrderByDescending(kv => kv.Value)
             .Take(5)
-            .Select(kv => new { Key = kv.Key, Value = (kv.Value * 100.0) / _packetCounter })
+            .Select(kv =>
+            {
+                double pct = _packetCounter > 0 ? Math.Round((kv.Value * 100.0) / _packetCounter, 1) : 0;
+                return new ProtocolEntry { Name = kv.Key, Percentage = pct, Count = kv.Value };
+            })
             .ToList();
 
         ProtocolBreakdownList.ItemsSource = topProtocols;
@@ -708,4 +712,13 @@ public partial class MainWindow : Window
         _queueManager?.Stop();
         base.OnClosed(e);
     }
+}
+
+public class ProtocolEntry
+{
+    public string Name { get; set; } = "";
+    public double Percentage { get; set; }
+    public int Count { get; set; }
+    public string DisplayPercentage => $"{Percentage:F1}%";
+    public string DisplayCount => Count.ToString("N0");
 }

@@ -32,7 +32,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Path Data="M 12 0 L 24 12 L 12 24 L 0 12 Z M 12 4 L 20 12 L 12 20 L 4 12 Z" Fill="{StaticResource AccentCyanBrush}" Width="24" Height="24" Stretch="Uniform" Margin="0,0,10,0" />
                     <TextBlock Text="SentinelShark" Foreground="{StaticResource AccentCyanBrush}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Text="v2.4.1 — Network Intrusion Detection &amp; Analysis" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" />
+                    <TextBlock Text="v1.0.0 — Network Intrusion Detection &amp; Analysis" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -149,7 +149,7 @@
                     </Style>
                 </DataGrid.Resources>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="NO." Binding="{Binding No}" Width="60">
+                    <DataGridTextColumn Header="NO." Binding="{Binding No}" Width="50">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -157,28 +157,28 @@
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="100">
+                    <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="110">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="140">
+                    <DataGridTextColumn Header="SOURCE" Binding="{Binding Source}" Width="130">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="DESTINATION" Binding="{Binding Destination}" Width="140">
+                    <DataGridTextColumn Header="DESTINATION" Binding="{Binding Destination}" Width="130">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="PROTOCOL" Binding="{Binding Protocol}" Width="80">
+                    <DataGridTextColumn Header="PROTOCOL" Binding="{Binding Protocol}" Width="75">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="FontWeight" Value="SemiBold"/>
@@ -186,7 +186,7 @@
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTextColumn Header="LENGTH" Binding="{Binding Length}" Width="70">
+                    <DataGridTextColumn Header="LENGTH" Binding="{Binding Length}" Width="55">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -198,10 +198,11 @@
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
-                    <DataGridTemplateColumn Header="THREAT SCORE" Width="120">
+                    <DataGridTemplateColumn Header="THREAT SCORE" Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Border x:Name="BadgeBorder" CornerRadius="10" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#1F22C55E" BorderBrush="#4022C55E" BorderThickness="1">
@@ -282,15 +283,17 @@
                             <ItemsControl x:Name="ProtocolBreakdownList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="0,2">
+                                        <Grid Margin="0,3">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="50"/>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="40"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Key}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center"/>
-                                            <ProgressBar Grid.Column="1" Value="{Binding Value, Mode=OneWay}" Maximum="100" Height="6" Margin="4,0" BorderThickness="0" Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource InputBackgroundBrush}"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Value, StringFormat={}{0}%}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            <ProgressBar Grid.Column="1" Value="{Binding Percentage, Mode=OneWay}" Maximum="100" Height="6" Margin="6,0" BorderThickness="0" Foreground="{StaticResource AccentBlueBrush}" Background="{StaticResource InputBackgroundBrush}"/>
+                                            <TextBlock Grid.Column="2" Foreground="{StaticResource AccentCyanBrush}" FontSize="11" FontFamily="{StaticResource MonoFont}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                <Run Text="{Binding DisplayPercentage, Mode=OneWay}"/>
+                                            </TextBlock>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -416,7 +419,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse x:Name="TSharkStatusDot" Width="8" Height="8" Fill="{StaticResource WarningAmberBrush}" Margin="0,0,4,0"/>
                     <TextBlock x:Name="TSharkStatusText" Text="Checking TShark..." Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,16,0"/>
-                    <TextBlock Text="SentinelShark v2.4.1" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                    <TextBlock Text="SentinelShark v1.0.0" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                 </StackPanel>
             </Grid>
         </Border>

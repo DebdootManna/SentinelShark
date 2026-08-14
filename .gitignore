@@ -82,3 +82,11 @@ htmlcov/
 *.log
 logs/
 .DS_Store
+
+# .NET Build Artifacts
+bin/
+obj/
+distv2/
+*.user
+*.suo
+*.userprefs
