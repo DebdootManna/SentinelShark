@@ -1,0 +1,1524 @@
+% ============================================================
+%  SentinelShark NIDS — Complete Project Documentation
+%  Compile with pdfLaTeX on Overleaf (rename this file main.tex)
+%  Engine: pdfLaTeX | Overleaf compiler: default
+% ============================================================
+\documentclass[12pt,a4paper]{report}
+
+% ---- ENCODING & FONTS ----
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- PAGE LAYOUT (Compact professional margins & proper headheight) ----
+\usepackage[a4paper, top=2cm, bottom=2cm, left=2cm, right=2cm, headheight=25pt, footskip=1cm]{geometry}
+
+% ---- COLORS (High contrast palette optimized for white paper) ----
+\usepackage[table,dvipsnames]{xcolor}
+\definecolor{SSNavy}{HTML}{0F172A}       % Deep slate navy for main headings
+\definecolor{SSDarkBlue}{HTML}{0A2540}   % Dark midnight blue
+\definecolor{SSBlue}{HTML}{1D4ED8}       % Crisp royal blue for sections
+\definecolor{SSCyan}{HTML}{0284C7}       % Deep ocean cyan (readable on white)
+\definecolor{SSSlate}{HTML}{475569}      % Dark slate gray for subheadings/captions
+\definecolor{SSEmerald}{HTML}{15803D}    % Dark green for safe/success
+\definecolor{SSAmber}{HTML}{B45309}      % Dark amber/brown for warnings
+\definecolor{SSCrimson}{HTML}{B91C1C}    % Dark red for critical threats
+\definecolor{SSPurple}{HTML}{6D28D9}     % Rich purple
+\definecolor{SSTeal}{HTML}{0F766E}       % Deep teal
+\definecolor{SSCard}{HTML}{F8FAFC}       % Card background (light tint)
+\definecolor{SSBorder}{HTML}{CBD5E1}     % Subtle border gray
+\definecolor{codebg}{HTML}{0F172A}       % Dark code block background
+\definecolor{rowA}{HTML}{F1F5F9}         % Table alternate row
+\definecolor{rowB}{HTML}{FFFFFF}         % Table row white
+
+% ---- TIKZ ----
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning,
+                fit, backgrounds, calc, matrix, decorations.pathreplacing}
+
+% ---- PGFPLOTS ----
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% ---- GANTT CHART ----
+\usepackage{pgfgantt}
+
+% ---- TABLES ----
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{makecell}
+\renewcommand{\arraystretch}{1.18} % Compact row height to eliminate whitespace gaps
+
+% ---- MATH ----
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- FIGURES ----
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{font={small,bf}, labelfont={color=SSNavy}, skip=6pt}
+
+% ---- FLOAT PLACEMENT & PACKING (Prevent centering on isolated float pages) ----
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.15}
+\renewcommand{\floatpagefraction}{0.80}
+
+% ---- LISTINGS (code blocks) ----
+\usepackage{listings}
+\lstdefinestyle{shellstyle}{
+  backgroundcolor=\color{codebg},
+  commentstyle=\color{SSSlate!80!white},
+  keywordstyle=\color{cyan!70!white}\bfseries,
+  stringstyle=\color{green!70!white},
+  basicstyle=\ttfamily\footnotesize\color{white},
+  breaklines=true, numbers=left,
+  numberstyle=\tiny\color{SSSlate!70!white},
+  numbersep=8pt,
+  frame=single, rulecolor=\color{SSBorder},
+  framesep=5pt, tabsize=4,
+  showspaces=false, showstringspaces=false
+}
+\lstset{style=shellstyle}
+
+% ---- TYPOGRAPHY & SPACING (Eliminate excessive blank space) ----
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{mdframed}
+
+\raggedbottom % Prevent LaTeX from stretching vertical gaps between tables and text
+\setlength{\parskip}{4pt plus 1pt minus 1pt}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+
+% ---- HYPERREF CONFIG ----
+\hypersetup{
+  colorlinks=true,
+  linkcolor=SSBlue,
+  urlcolor=SSBlue,
+  citecolor=SSBlue,
+  pdftitle={SentinelShark NIDS Documentation},
+  pdfauthor={Debdoot Manna},
+  pdfsubject={Network Intrusion Detection System},
+  bookmarksnumbered=true
+}
+
+% ---- TITLE FORMATTING ----
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{SSNavy}}
+  {\chaptertitlename\ \thechapter}{10pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-10pt}{14pt}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{SSBlue}}
+  {\thesection}{1em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{SSNavy!85!black}}
+  {\thesubsection}{1em}{}
+\titlespacing*{\subsection}{0pt}{8pt}{3pt}
+
+% ---- PAGE STYLE ----
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{SSSlate}{\textbf{SentinelShark NIDS} v2.4.1}}
+\fancyhead[R]{\small\textcolor{SSSlate}{\leftmark}}
+\fancyfoot[C]{\small\textcolor{SSNavy}{\textbf{\thepage}}}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{SSBorder}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrulewidth}{0.3pt}
+\renewcommand{\footrule}{\hbox to\headwidth{\color{SSBorder}\leaders\hrule height \footrulewidth\hfill}}
+
+% ---- TIKZ GLOBAL STYLES (High contrast for white paper) ----
+\tikzset{
+  ssbox/.style={
+    rectangle, draw=SSBlue, fill=SSCard, text=SSNavy,
+    rounded corners=4pt, minimum height=0.85cm,
+    font=\small\bfseries, align=center, inner sep=5pt, line width=0.8pt
+  },
+  ssprocess/.style={
+    rectangle, draw=SSBlue!80, fill=white, text=SSNavy,
+    minimum width=4.5cm, minimum height=0.8cm,
+    font=\small, align=center, inner sep=4pt, rounded corners=3pt, line width=0.7pt
+  },
+  ssdecision/.style={
+    diamond, draw=SSAmber, fill=SSAmber!10, text=SSNavy,
+    aspect=2.3, font=\scriptsize\bfseries, align=center, inner sep=2pt, line width=0.8pt
+  },
+  ssstart/.style={
+    rectangle, draw=SSEmerald, fill=SSEmerald!12, text=SSEmerald!90!black,
+    rounded corners=12pt, minimum width=3.8cm, minimum height=0.75cm,
+    font=\small\bfseries, align=center, line width=0.9pt
+  },
+  ssterminal/.style={
+    rectangle, draw=SSCrimson, fill=SSCrimson!12, text=SSCrimson!90!black,
+    rounded corners=12pt, minimum width=3.8cm, minimum height=0.75cm,
+    font=\small\bfseries, align=center, line width=0.9pt
+  },
+  ssarrow/.style={
+    ->, >=Stealth, thick, color=SSBlue
+  },
+  ssarrowAmber/.style={
+    ->, >=Stealth, thick, color=SSAmber
+  },
+  ssmod/.style={
+    rectangle, draw=SSNavy!60, fill=SSCard, text=SSNavy,
+    rounded corners=3pt, minimum width=2.8cm, minimum height=0.7cm,
+    font=\footnotesize\bfseries, align=center, line width=0.7pt
+  },
+  sslabel/.style={font=\scriptsize\bfseries, text=SSSlate}
+}
+
+\begin{document}
+
+% ===================== TITLE PAGE =====================
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+
+\begin{tikzpicture}
+  \draw[SSBlue, line width=3.5pt, rounded corners=2pt] (0,0) -- (15,0);
+\end{tikzpicture}
+
+\vspace{0.6cm}
+{\fontsize{44}{50}\selectfont\bfseries\textcolor{SSNavy}{SentinelShark}}
+
+\vspace{0.3cm}
+{\Large\bfseries\textcolor{SSBlue}{Network Intrusion Detection \& Analysis System}}\\[0.2cm]
+{\normalsize\textcolor{SSSlate}{\textbf{Version 2.4.1} \quad $\cdot$ \quad \textbf{MIT License} \quad $\cdot$ \quad \textbf{Cross-Platform Desktop}}}
+
+\vspace{0.5cm}
+\begin{tikzpicture}
+  \draw[SSCyan, line width=1.5pt, rounded corners=1pt] (0,0) -- (15,0);
+\end{tikzpicture}
+
+\vspace{1.2cm}
+{\LARGE\bfseries\textcolor{SSNavy}{Comprehensive Technical Documentation}}\\[0.3cm]
+{\large\textcolor{SSSlate}{Project Synopsis $\;\cdot\;$ System Architecture $\;\cdot\;$ UI Design $\;\cdot\;$ Engineering Portfolio}}
+
+\vspace{1.8cm}
+\begin{mdframed}[backgroundcolor=SSCard, linecolor=SSBorder, linewidth=1.2pt, roundcorner=8pt, userdefinedwidth=0.85\textwidth]
+\centering\vspace{0.4cm}
+\begin{tabular}{rl}
+  \textcolor{SSSlate}{\textbf{Author \& Lead Developer:}} & \textcolor{SSNavy}{\textbf{Debdoot Manna}} \\[6pt]
+  \textcolor{SSSlate}{\textbf{Target Operating Systems:}} & \textcolor{SSNavy}{macOS 12+ (Darwin) and Windows 10/11 (NT)} \\[6pt]
+  \textcolor{SSSlate}{\textbf{Core Codebase Technologies:}} & \textcolor{SSNavy}{Python 3.10+, C\# .NET 8 (WPF), TypeScript} \\[6pt]
+  \textcolor{SSSlate}{\textbf{Repository Location:}} & \textcolor{SSBlue}{\textbf{\url{https://github.com/DebdootManna/sentinelshark}}} \\[6pt]
+  \textcolor{SSSlate}{\textbf{Documentation Date:}} & \textcolor{SSNavy}{\today} \\
+\end{tabular}
+\vspace{0.4cm}
+\end{mdframed}
+
+\vfill
+
+\begin{mdframed}[backgroundcolor=white, linecolor=SSBlue!40, linewidth=1pt, roundcorner=6pt]
+\centering\small\textcolor{SSNavy}{
+  \textbf{Core Frameworks:} PyQt6 $\cdot$ qasync $\cdot$ PyShark $\cdot$ httpx $\cdot$ cachetools $\cdot$ psutil $\cdot$ .NET 8 WPF\\[2pt]
+  \textbf{Threat Intelligence Feeds:} AbuseIPDB $\cdot$ VirusTotal $\cdot$ IPinfo $\cdot$ Shodan \& InternetDB
+}
+\end{mdframed}
+
+\end{titlepage}
+
+% ===================== FRONT MATTER =====================
+\tableofcontents
+\clearpage
+\listoffigures
+\listoftables
+\clearpage
+
+% ============================================================
+%  CHAPTER 1: PROJECT SYNOPSIS
+% ============================================================
+\chapter{Project Synopsis}
+
+\section{Executive Summary}
+
+\textbf{SentinelShark} is a high-performance, modern desktop \textbf{Network Intrusion Detection and Analysis System (NIDS)}, engineered as an intelligent, real-time threat-correlated alternative to classic packet analyzers such as Wireshark. While conventional sniffers provide raw packet inspection, they leave security analysts with the cumbersome manual burden of extracting IP addresses and looking them up across disparate reputation feeds. SentinelShark bridges this gap by unifying live packet capture, deep protocol parsing (L2 through L7), and automated asynchronous threat intelligence enrichment from four premier security providers: \textbf{AbuseIPDB}, \textbf{VirusTotal}, \textbf{IPinfo}, and \textbf{Shodan}.
+
+Designed for security analysts, incident responders, network administrators, and cybersecurity researchers, SentinelShark transforms raw network telemetry into actionable security insights in real time. The software automatically calculates composite threat scores, color-codes suspicious flows, extracts payload hashes (MD5 and SHA256), decodes application protocols, and presents network health through an ergonomic dark-mode user interface.
+
+To ensure wide enterprise applicability, SentinelShark includes both a primary cross-platform Python 3.10+ / PyQt6 application and a standalone native \textbf{C\# .NET 8 / WPF} companion application for Windows environments.
+
+\section{The Problem: Limitations of Legacy Network Analyzers}
+
+Network environments generate vast amounts of high-velocity traffic. When diagnosing potential compromises, data exfiltration, or denial-of-service attempts, security personnel face critical bottlenecks:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Absence of Automated Threat Context:} Standard packet analyzers capture raw frames but offer zero correlation with global threat databases. Analysts must copy each public IP address manually into browser tabs to verify reputation.
+  \item \textbf{Inefficient Incident Response Triage:} Under high packet volumes, distinguishing benign cloud services from malicious Command-and-Control (C2) servers or Tor exit nodes is challenging without visual risk triage.
+  \item \textbf{Binary Dependency Fragility:} Traditional packet sniffers crash or become completely unusable when low-level capture drivers (like Npcap or libpcap) are absent or when users lack administrative privilege.
+  \item \textbf{API Rate Limit Exhaustion:} Ad-hoc querying of external threat APIs leads to quota burnout without intelligent rate limiting, local TTL caching, and exponential backoff handling.
+\end{itemize}
+
+\section{Proposed Solution \& Core Innovations}
+
+SentinelShark resolves these operational challenges through three architectural pillars:
+
+\begin{enumerate}[leftmargin=1.5cm, label=\textbf{\arabic*.}]
+  \item \textbf{Resilient Zero-Friction Capture Architecture:} The engine searches for installed TShark binaries, seamlessly degrades to PyShark, and includes an internal high-fidelity Mock Traffic Generator (30--70 packets/sec). This ensures that researchers can test and demonstrate detection workflows without special hardware or elevated privileges.
+  \item \textbf{Asynchronous Non-Blocking Threat Intelligence Pipeline:} External threat lookups run on non-blocking worker threads managed by \texttt{qasync} and \texttt{httpx}. An in-memory \texttt{TTLCache} with LRU eviction prevents duplicate requests, and an exponential backoff engine protects API quotas against HTTP 429 limits.
+  \item \textbf{Ergonomic Visual Triage Interface:} Built with a Figma-inspired dark cyber design, SentinelShark visually categorizes every flow using color-coded severity tiers (Safe Green, Warning Amber, Critical Crimson), real-time throughput sparklines, collapsible telemetry cards, and multi-layer protocol decoders.
+\end{enumerate}
+
+\section{High-Level Summary Metrics}
+
+The operational profile and architectural specifications of SentinelShark are summarized in Table~\ref{tab:metrics}.
+
+\begin{table}[htbp]
+\centering
+\caption{SentinelShark Key Performance and System Metrics}
+\label{tab:metrics}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{System Metric} & \textbf{Measurement} & \textbf{Engineering Detail / Implementation} \\
+\midrule
+Release Version & v2.4.1 & Production-ready desktop release \\
+Primary Platform & Python 3.10+ / PyQt6 & Cross-platform macOS (Darwin) and Windows 10/11 \\
+Companion Engine & C\# / .NET 8 WPF & Single-file self-contained native executable for Windows \\
+Live Sniffing Throughput & $>$500 packets/sec & Line-buffered direct TShark JSON streaming subprocess \\
+Mock Simulation Speed & 30--70 packets/sec & High-fidelity simulated multi-protocol generator \\
+Threat Intelligence APIs & 4 External Services & AbuseIPDB v2, VirusTotal v3, IPinfo JSON, Shodan Host/InternetDB \\
+Supported Protocols & 10+ Decoders & DNS, HTTP, HTTPS/TLS, SSH, TCP, UDP, ICMP, ARP, QUIC \\
+Threat Cache TTL & 24 Hours & In-memory TTLCache (2,000-IP capacity with LRU eviction) \\
+Default API Rate Limit & 30 requests/min & Configurable token bucket with exponential HTTP 429 backoff \\
+Unit Test Suite & 13 Automated Tests & Zero-dependency Python \texttt{unittest} verification suite \\
+Total Codebase Size & $\sim$9{,}145 LoC & Python (4.8k) + .NET (2.8k) + React UI (1.1k) + Tests (309) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+%  CHAPTER 2: PROJECT DEFINITION & REQUIREMENTS
+% ============================================================
+\chapter{Project Definition \& Requirements}
+
+\section{Project Mission \& High-Level Objectives}
+
+The primary mission of SentinelShark is to empower security analysts with instant, automated visibility into network traffic risk without introducing operational complexity or high infrastructure overhead. Table~\ref{tab:objectives} itemizes the specific project objectives, their prioritized weight, and delivery status.
+
+\begin{table}[htbp]
+\centering
+\caption{Project Objectives and Completion Status}
+\label{tab:objectives}
+\begin{tabularx}{\textwidth}{clXl}
+\toprule
+\textbf{ID} & \textbf{Priority} & \textbf{Objective Description} & \textbf{Status} \\
+\midrule
+O-01 & Critical & High-throughput packet capture via direct TShark JSON streaming & Complete \\
+O-02 & Critical & Protocol dissection across OSI layers L2 through L7 into structured models & Complete \\
+O-03 & Critical & Asynchronous threat intelligence query pipeline across 4 external APIs & Complete \\
+O-04 & Critical & Robust fallback mechanism to simulated traffic (Mock Mode) when TShark absent & Complete \\
+O-05 & High & Standard Wireshark-compatible binary PCAP/PCAPNG file import and export & Complete \\
+O-06 & High & Real-time BPF capture filter sanitization and live table query filtering & Complete \\
+O-07 & High & Visual threat triage via dynamic score calculation and row color coding & Complete \\
+O-08 & High & In-memory TTL caching with completeness validation to conserve API quotas & Complete \\
+O-09 & Medium & Full cross-platform compatibility on macOS 12+ and Windows 10/11 & Complete \\
+O-10 & Low & Deliver a native C\# .NET 8 / WPF companion application for Windows & Complete \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{System Scope}
+
+\subsection{In Scope Capabilities}
+\begin{itemize}[noitemsep]
+  \item Live host network interface sniffing using line-buffered TShark JSON subprocess streams.
+  \item Standard binary PCAP and PCAPNG file import with prompt-driven automated threat analysis.
+  \item Native binary PCAP export using low-level \texttt{struct.pack} libpcap file formatting.
+  \item Comprehensive protocol dissection: Ethernet, IPv4, IPv6, TCP, UDP, DNS, HTTP, HTTPS/TLS, SSH, ICMP, ARP, and QUIC.
+  \item Automated threat enrichment querying AbuseIPDB, VirusTotal, IPinfo, and Shodan.
+  \item Smart private IP filtering bypassing non-routable RFC 1918, loopback, and multicast addresses.
+  \item In-memory thread-safe TTL caching with dynamic cache invalidation on credential update.
+  \item Real-time BPF filter shortcut translator (\texttt{http}, \texttt{ssl}, \texttt{dns}, raw IP host wrapping).
+  \item Figma-inspired dark cyber graphical user interface with live telemetry sparklines and metrics.
+  \item Standalone unit test suite verifying caching, hashing, parsing, and filtering subsystems.
+  \item Standalone Windows native .NET 8 / WPF companion application.
+\end{itemize}
+
+\subsection{Out of Scope Boundaries}
+\begin{itemize}[noitemsep]
+  \item Active intrusion prevention (IPS) actions, such as automated firewall blocking or packet dropping.
+  \item Persistent database storage (all capture telemetry and cached data remain strictly in-memory).
+  \item Decryption of encrypted TLS application payloads without user-supplied private SSL keys.
+  \item Outbound enterprise SIEM, Kafka, or Webhook streaming connectors.
+  \item Wireless 802.11 monitor mode configuration or Bluetooth protocol parsing.
+\end{itemize}
+
+\section{Stakeholder Matrix}
+
+The stakeholder analysis outlined in Table~\ref{tab:stakeholders} identifies key user personas, their operational focus areas, and the core value delivered by SentinelShark.
+
+\begin{table}[htbp]
+\centering
+\caption{System Stakeholder Roles and Value Propositions}
+\label{tab:stakeholders}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Stakeholder} & \textbf{Role} & \textbf{Key Interests and Value Delivered} \\
+\midrule
+Debdoot Manna & Lead Architect & Maintainability, code modularity, cross-platform portability \\
+SOC Analysts & Primary Users & Instant malicious IP identification, reduced incident triage times \\
+Network Engineers & Primary Users & Protocol volume breakdowns, throughput sparklines, BPF accuracy \\
+Malware Researchers & Secondary Users & Hex/ASCII payload inspection, MD5/SHA256 checksums, CVE links \\
+CTF Competitors & Secondary Users & Rapid offline PCAP analysis with automatic threat reputation lookup \\
+Open Source Community & Contributors & Clean modular architecture, clear documentation, test suite \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Detailed Functional Requirements}
+
+The functional requirements cover the entire operational lifecycle of SentinelShark, from hardware interface binding to multi-feed threat correlation and visualization. These requirements are formalized in Table~\ref{tab:fr}.
+
+\begin{longtable}{clp{11.5cm}}
+\caption{Comprehensive Functional Requirements (FR-01 through FR-20)}
+\label{tab:fr} \\
+\toprule
+\textbf{ID} & \textbf{Subsystem} & \textbf{Detailed Requirement Specification} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{ID} & \textbf{Subsystem} & \textbf{Detailed Requirement Specification} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\small\textit{Continued on next page}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+FR-01 & Live Sniffing & Continuous packet capture from selected host adapter via line-buffered TShark JSON subprocess. \\
+FR-02 & Mock Generator & Generate synthetic DNS, HTTP, SSH, and TCP traffic flows at 30--70 packets/sec when TShark is absent. \\
+FR-03 & PCAP Import & Load existing .pcap/.pcapng files with dialog prompting user for automated threat intelligence enrichment. \\
+FR-04 & PCAP Export & Serialize and save in-memory captured packets into standard libpcap binary files. \\
+FR-05 & Protocol Dissection & Parse OSI layers L2 through L7 and generate hierarchical dissection tree nodes. \\
+FR-06 & Hex Byte Viewer & Render raw packet payloads in aligned 16-byte offset, hex representation, and printable ASCII. \\
+FR-07 & Payload Hashing & Calculate MD5 (32-character) and SHA256 (64-character) cryptographic checksums for packet payloads. \\
+FR-08 & Threat Enrichment & Asynchronously query AbuseIPDB, VirusTotal, IPinfo, and Shodan for all observed public IPs. \\
+FR-09 & Smart IP Filtering & Identify and bypass RFC 1918, 127.0.0.0/8, 169.254.0.0/16, and multicast ranges from API lookups. \\
+FR-10 & In-Memory TTL Cache & Cache query responses in memory for 24 hours with LRU eviction and completeness checks. \\
+FR-11 & Request Rate Limiter & Enforce strict inter-request delay ($60 / \text{max\_req\_per\_min}$) across all asynchronous lookups. \\
+FR-12 & HTTP 429 Backoff & Implement exponential backoff (starting at 1s, doubling up to 60s) upon encountering HTTP 429 limits. \\
+FR-13 & BPF Sanitization & Automatically translate user-friendly shortcuts (\texttt{http}, \texttt{web}, \texttt{ssl}, \texttt{dns}) into valid BPF syntax. \\
+FR-14 & Real-Time Filter & Dynamically filter packet table rows by IP, port, protocol, or info text as user types. \\
+FR-15 & Visual Color Triage & Color-code table rows based on computed threat risk: Safe (Green), Warning (Amber), Threat (Red). \\
+FR-16 & Adapter Selector & Present available host adapters with real-time throughput sparklines and KB/s rate previews. \\
+FR-17 & Credential Modal & Configure and securely persist API credentials in \texttt{.env} with password-masked input fields. \\
+FR-18 & Telemetry Dashboard & Render live statistics: total packet count, byte volume, protocol proportions, and threat counters. \\
+FR-19 & Shodan Fallback & Automatically failover to free Shodan InternetDB if API key is missing or HTTP 403 occurs. \\
+FR-20 & Permission Advisor & Detect capture permission denials on macOS/Windows and guide users with elevation prompts. \\
+\end{longtable}
+
+\section{Non-Functional Requirements \& Performance Targets}
+
+To ensure commercial-grade reliability during active cyber incidents, SentinelShark establishes rigorous non-functional requirements (NFRs) across four critical operational dimensions:
+
+\begin{enumerate}[leftmargin=1.5cm, label=\textbf{\arabic*.}]
+  \item \textbf{Throughput \& Real-Time Responsiveness:} The system must ingest live traffic exceeding 500 packets per second while maintaining a fluid 60 frames-per-second GUI repaint cycle. Under continuous high packet rates, CPU utilization is constrained by batching signal emissions every 20 packets (or 40\,ms) and disabling widget table updates during insert bursts.
+  \item \textbf{Asynchronous I/O Isolation:} The PyQt6 main GUI thread must remain completely decoupled from network latency. All HTTP requests to external threat intelligence providers (AbuseIPDB, VirusTotal, IPinfo, Shodan) execute on isolated \texttt{httpx} asynchronous worker loops managed by \texttt{qasync}.
+  \item \textbf{Memory Footprint \& Eviction Safety:} To prevent memory exhaustion during long-running capture sessions, the in-memory threat cache enforces a strict upper ceiling of 2,000 unique IP entries using a Least-Recently-Used (LRU) eviction algorithm.
+  \item \textbf{Secret Isolation \& Zero-Leakage Security:} User API keys and authentication tokens must never be written to committed version-controlled files. All secrets reside exclusively inside a git-ignored \texttt{.env} configuration file.
+\end{enumerate}
+
+These engineering constraints and service-level objectives are formally tabulated in Table~\ref{tab:nfr}.
+
+\begin{table}[htbp]
+\centering
+\caption{Non-Functional Requirements and Operational Constraints}
+\label{tab:nfr}
+\begin{tabularx}{\textwidth}{clX}
+\toprule
+\textbf{ID} & \textbf{Category} & \textbf{Technical Specification / Quality Constraint} \\
+\midrule
+NFR-01 & GUI Responsiveness & Packet table and charts must sustain $>$500 pkts/s without dropping GUI frames (60 FPS). \\
+NFR-02 & Asynchronous I/O & External HTTP requests must execute in async coroutines without blocking the Qt event loop. \\
+NFR-03 & UI Batch Rendering & Incoming packets must be emitted in batches of 20 items or 40\,ms to minimize repaint cycles. \\
+NFR-04 & Failover Resilience & Packet capture must gracefully degrade across TShark $\to$ PyShark $\to$ Mock Mode without crashing. \\
+NFR-05 & Secret Security & API keys must reside exclusively in git-ignored \texttt{.env} files and never in \texttt{config.json}. \\
+NFR-06 & Memory Ceiling & Threat cache must strictly enforce a maximum memory capacity of 2,000 entries using LRU eviction. \\
+NFR-07 & OS Portability & The Python application must run identically on macOS 12+ and Windows 10/11 without modification. \\
+NFR-08 & Architectural Decoupling & All UI components must communicate with Core and Service layers strictly via PyQt signals. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+%  CHAPTER 3: SYSTEM ARCHITECTURE & DATA ENGINEERING
+% ============================================================
+\chapter{System Architecture \& Data Engineering}
+
+\section{Three-Tier Layered Architecture Pattern}
+
+SentinelShark is architected around a strict three-tier modular pattern: the **UI Presentation Layer**, the **Core Processing Engine**, and the **Asynchronous Services Layer**. This separation ensures that high-velocity packet ingestion never starves the graphical user interface of execution time.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.45cm and 0.35cm]
+
+  % UI Layer
+  \node[ssbox, minimum width=2.5cm] (mw)  at (0.0, 6.8) {MainWindow};
+  \node[ssbox, minimum width=2.5cm] (pt)  at (3.2, 6.8) {PacketTable};
+  \node[ssbox, minimum width=2.5cm] (pd)  at (6.4, 6.8) {PacketDetail};
+  \node[ssbox, minimum width=2.5cm] (hv)  at (9.6, 6.8) {HexView};
+  \node[ssbox, minimum width=2.5cm] (sp)  at (12.8,6.8) {StatsPanel};
+  \begin{scope}[on background layer]
+    \node[draw=SSBlue!40, fill=SSCard, rounded corners=6pt, inner sep=6pt,
+          fit=(mw)(pt)(pd)(hv)(sp)] (uilayer) {};
+  \end{scope}
+  \node[text=SSBlue, font=\scriptsize\bfseries] at (6.4, 7.4) {UI PRESENTATION LAYER --- PyQt6 Desktop Widgets};
+
+  % Core Layer
+  \node[ssmod] (cap)   at (1.2,  5.1) {capture.py};
+  \node[ssmod] (par)   at (4.4,  5.1) {parser.py};
+  \node[ssmod] (pcw)   at (7.6,  5.1) {pcapwriter.py};
+  \node[ssmod] (imap)  at (10.8, 5.1) {interfacemapper.py};
+  \node[ssmod] (cache) at (3.2,  4.1) {cache.py};
+  \node[ssmod] (cfg)   at (8.8,  4.1) {config.py};
+  \begin{scope}[on background layer]
+    \node[draw=SSNavy!30, fill=white, rounded corners=6pt, inner sep=6pt,
+          fit=(cap)(par)(pcw)(imap)(cache)(cfg)] (corelayer) {};
+  \end{scope}
+  \node[text=SSNavy, font=\scriptsize\bfseries] at (6.0, 5.75) {CORE PROCESSING LAYER --- Capture, Parsing \& Caching};
+
+  % Service Layer
+  \node[ssmod, draw=SSAmber!80, minimum width=4.5cm] (ti) at (3.5, 2.7) {threatintel.py (HTTP Client)};
+  \node[ssmod, draw=SSAmber!80, minimum width=4.5cm] (qm) at (9.5, 2.7) {queuemanager.py (Queue Worker)};
+  \begin{scope}[on background layer]
+    \node[draw=SSAmber!40, fill=SSAmber!5, rounded corners=6pt, inner sep=6pt,
+          fit=(ti)(qm)] (svclayer) {};
+  \end{scope}
+  \node[text=SSAmber, font=\scriptsize\bfseries] at (6.5, 3.35) {SERVICE LAYER --- Asynchronous Threat Intelligence};
+
+  % External Layer
+  \node[ssmod, draw=SSPurple!70, fill=white, minimum width=2.4cm] (vt) at (0.8,  1.2) {VirusTotal};
+  \node[ssmod, draw=SSPurple!70, fill=white, minimum width=2.4cm] (ab) at (3.8,  1.2) {AbuseIPDB};
+  \node[ssmod, draw=SSPurple!70, fill=white, minimum width=2.4cm] (ip) at (6.8,  1.2) {IPinfo};
+  \node[ssmod, draw=SSPurple!70, fill=white, minimum width=2.4cm] (sh) at (9.8,  1.2) {Shodan};
+  \node[ssmod, draw=SSSlate!70,  fill=white, minimum width=2.4cm] (ts) at (12.8, 1.2) {TShark Binary};
+  \begin{scope}[on background layer]
+    \node[draw=SSBorder, fill=SSCard, rounded corners=6pt, inner sep=5pt,
+          fit=(vt)(ab)(ip)(sh)(ts)] (extlayer) {};
+  \end{scope}
+  \node[text=SSSlate, font=\scriptsize\bfseries] at (6.8, 1.85) {EXTERNAL SERVICES \& SYSTEM BINARIES};
+
+  % Inter-layer connections
+  \draw[ssarrow] (mw) -- (cap);
+  \draw[ssarrow] (mw) -- (par);
+  \draw[ssarrow] (pt) -- (cache);
+  \draw[ssarrow] (mw) -- (qm);
+  \draw[ssarrow] (qm) -- (ti);
+  \draw[ssarrowAmber] (ti) -- (vt);
+  \draw[ssarrowAmber] (ti) -- (ab);
+  \draw[ssarrowAmber] (ti) -- (ip);
+  \draw[ssarrowAmber] (ti) -- (sh);
+  \draw[ssarrow, color=SSSlate] (cap) -- (ts);
+
+\end{tikzpicture}
+\caption{SentinelShark Layered System Architecture}
+\label{fig:architecture}
+\end{figure}
+
+\section{Asynchronous Concurrency Model: qasync \& QThread}
+
+Handling simultaneous 500+ packet/sec live capture while issuing concurrent HTTP REST requests requires a hybrid threading and asynchronous architecture:
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Dedicated Capture Thread (\texttt{QThread}):} The packet capture loop executes inside \texttt{LiveCaptureThread}, an isolated \texttt{QThread}. This prevents blocking the main GUI loop.
+  \item \textbf{Asynchronous Event Loop (\texttt{qasync}):} Network lookups execute as \texttt{asyncio} coroutines managed by \texttt{qasync}, which embeds the Python asyncio event loop directly inside the PyQt6 Qt event loop.
+  \item \textbf{Thread-Safe Signal Dispatching:} Inter-thread communication uses \texttt{pyqtSignal} objects (\texttt{packet\_received}, \texttt{packets\_batch\_received}, \texttt{threat\_resolved}, \texttt{queue\_status}), guaranteeing thread safety.
+\end{enumerate}
+
+\section{Technology Stack Specifications}
+
+The technology stack powering SentinelShark was selected based on strict criteria of cross-platform stability, native rendering performance, and asynchronous non-blocking I/O efficiency. Rather than relying on web-based desktop wrappers (such as Electron) which introduce high memory footprints and garbage collection pauses, SentinelShark is built upon native compiled binaries and Python C-extensions.
+
+\begin{itemize}[noitemsep]
+  \item \textbf{PyQt6 GUI Toolkit:} Provides native desktop widgets with direct GPU acceleration, native OS styling, and high-performance paint events.
+  \item \textbf{\texttt{qasync} Event Bridge:} Unifies the standard Python 3.10+ \texttt{asyncio} event loop with the Qt event loop, allowing non-blocking HTTP coroutines to update GUI elements without manual thread synchronization.
+  \item \textbf{\texttt{httpx} Async Client:} Delivers fully asynchronous HTTP/1.1 and HTTP/2 transport pipelines with connection pooling, automatic keep-alive, and sub-millisecond connection reuse across threat intelligence providers.
+  \item \textbf{\texttt{cachetools} Memory Cache:} Provides thread-safe, lock-optimized in-memory caching with Least-Recently-Used (LRU) eviction and time-to-live (TTL) expiration.
+  \item \textbf{\texttt{psutil} Hardware Telemetry:} Facilitates real-time sampling of per-interface kernel byte counters to generate accurate bandwidth sparklines.
+\end{itemize}
+
+Table~\ref{tab:techstack} details each technology, the pinned dependency version, and its functional responsibility within the system.
+
+\begin{table}[htbp]
+\centering
+\caption{Complete Technology Stack Specifications}
+\label{tab:techstack}
+\begin{tabularx}{\textwidth}{lllX}
+\toprule
+\textbf{Component} & \textbf{Technology} & \textbf{Version} & \textbf{Role in SentinelShark} \\
+\midrule
+Primary Language & Python & 3.10+ & Core application runtime \\
+GUI Framework & PyQt6 & $\geq$6.5.0 & Desktop user interface widgets and event loop \\
+Async Event Loop & qasync & $\geq$0.27.0 & Seamless integration of asyncio coroutines with PyQt6 \\
+Packet Parser & PyShark & $\geq$0.6.0 & Python wrapper for Wireshark/TShark dissectors \\
+HTTP Engine & httpx & $\geq$0.25.0 & High-performance asynchronous REST client \\
+Memory Cache & cachetools & $\geq$5.3.0 & In-memory TTLCache with LRU eviction \\
+Host Telemetry & psutil & $\geq$5.9.0 & Real-time NIC byte throughput and sparkline data \\
+Binary Engine & TShark & 3.4+ / 4.x & System packet capture and protocol decoding binary \\
+\midrule
+Windows Native & C\# / .NET 8 & net8.0-windows & WPF native Windows companion edition \\
+Design Prototype & React / Tailwind & 19.x / v4 & Figma Make UI visual prototype \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Python Module Organization}
+
+The Python codebase is partitioned into distinct subdirectories aligning with architectural boundaries:
+\begin{itemize}[noitemsep]
+  \item \textbf{Root \& Entry (\texttt{run.py}, \texttt{app/main.py}):} Bootstraps the application, configures the platform event loop policy (\texttt{WindowsSelectorEventLoopPolicy} on Windows), and starts the \texttt{qasync} loop.
+  \item \textbf{Configuration Management (\texttt{app/config.py}):} Implements a thread-safe singleton managing \texttt{.env} secret isolation, \texttt{config.json} defaults, and automated discovery of the system TShark binary.
+  \item \textbf{Core Packet Engine (\texttt{app/core/}):} Encapsulates packet capture (\texttt{capture.py}), layer dissection and hash calculation (\texttt{parser.py}), binary PCAP export (\texttt{pcapwriter.py}), TTL caching (\texttt{cache.py}), and cross-platform interface resolution (\texttt{interfacemapper.py}).
+  \item \textbf{Services (\texttt{app/services/}):} Hosts the multi-provider async HTTP client (\texttt{threatintel.py}) and priority queue rate limiter (\texttt{queuemanager.py}).
+  \item \textbf{UI Components (\texttt{app/ui/}):} Contains the main window frame (\texttt{mainwindow.py}), global dark cyber QSS stylesheet (\texttt{styles.py}), and modular UI components (\texttt{packettable.py}, \texttt{packetdetail.py}, \texttt{hexview.py}, \texttt{statspanel.py}, \texttt{sparkline.py}).
+\end{itemize}
+
+Table~\ref{tab:modules} summarizes the Python module layout, layer alignment, functional responsibilities, and source line counts.
+
+\begin{table}[htbp]
+\centering
+\caption{Python Application Modules and Line Counts}
+\label{tab:modules}
+\begin{tabularx}{\textwidth}{llXr}
+\toprule
+\textbf{Module Path} & \textbf{Layer} & \textbf{Primary Responsibility} & \textbf{LoC} \\
+\midrule
+\texttt{run.py} & Entry & Execution launcher wrapping \texttt{app.main} & 10 \\
+\texttt{app/main.py} & Entry & Initializes PyQt6, qasync loop, Windows policy & 46 \\
+\texttt{app/config.py} & Config & Manages \texttt{.env}/JSON settings and TShark path detection & 244 \\
+\texttt{app/core/capture.py} & Core & Live capture thread, TShark subprocess, Mock engine & 468 \\
+\texttt{app/core/parser.py} & Core & Dissects packets, formats hex dumps, computes hashes & 478 \\
+\texttt{app/core/pcapwriter.py} & Core & Writes standard binary libpcap capture files to disk & 62 \\
+\texttt{app/core/cache.py} & Core & Thread-safe TTL cache with completeness validation & 66 \\
+\texttt{app/core/interfacemapper.py} & Core & Resolves OS interface names to user-friendly labels & 132 \\
+\texttt{app/services/threatintel.py} & Service & Async API client for AbuseIPDB, VT, IPinfo, Shodan & 336 \\
+\texttt{app/services/queuemanager.py} & Service & Async priority queue, rate limiter, backoff handler & 170 \\
+\texttt{app/ui/mainwindow.py} & UI & Main window layout, toolbar, menus, dialog wiring & 724 \\
+\texttt{app/ui/styles.py} & UI & Complete dark-mode QSS stylesheet & 350 \\
+\texttt{app/ui/components/packettable.py} & UI & Packet list table with color coding and search filter & 247 \\
+\texttt{app/ui/components/packetdetail.py} & UI & Tree widget for protocol layer dissection & 214 \\
+\texttt{app/ui/components/hexview.py} & UI & Hex/ASCII viewer with MD5 and SHA256 badge displays & 118 \\
+\texttt{app/ui/components/statspanel.py} & UI & Metric cards, protocol distribution, queue progress & 503 \\
+\texttt{app/ui/components/sparkline.py} & UI & Real-time QPainter waveform widget for NIC activity & 99 \\
+\texttt{tests/test\_sentinelshark.py} & Tests & Comprehensive automated 13-case unit test suite & 309 \\
+\midrule
+& & \textbf{Total Python Codebase} & \textbf{$\sim$4{,}836} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Packet Capture Lifecycle \& Multi-Tier Fallback}
+
+The packet capture subsystem is designed to ensure zero operational failure regardless of host environmental constraints. When the user initiates packet sniffing, the capture engine executes a 4-tier evaluation sequence:
+
+\begin{enumerate}[leftmargin=1.5cm, label=\textbf{\arabic*.}]
+  \item \textbf{Mock Mode Check:} If the user explicitly enabled Mock Mode (via the toolbar toggle or \texttt{MOCK\_MODE=true} environment variable), the engine immediately launches \texttt{run\_mock\_capture()}, generating realistic synthetic network flows (30--70 packets/sec).
+  \item \textbf{Offline PCAP File Capture:} If a saved capture file was opened, the engine delegates decoding to PyShark's \texttt{FileCapture} stream.
+  \item \textbf{Direct Line-Buffered TShark Subprocess:} In live mode, the engine invokes a native subprocess (\texttt{tshark -l -n -i <interface> -T json -x}) streaming line-delimited JSON packet objects directly over stdout pipes. This direct pipe achieves maximum throughput ($>$500 pkts/s).
+  \item \textbf{Automatic Fallback Chain:} If direct TShark subprocess initialization fails due to driver permission errors or binary path issues, the system automatically falls back to \texttt{PyShark.LiveCapture}. If that also fails, the engine seamlessly activates the Mock Traffic Generator and notifies the user with diagnostic remediation steps.
+\end{enumerate}
+
+Figure~\ref{fig:capture_flow} illustrates the decision tree and event emission lifecycle of the capture engine.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.65cm and 1.8cm]
+
+  \node[ssstart] (start) {User: Start Capture};
+  \node[ssdecision, below=of start] (mockchk) {Mock Mode\\ Enabled?};
+  \node[ssprocess, right=2.2cm of mockchk, minimum width=3.6cm] (mock1)
+    {\texttt{run\_mock\_capture()}\\ 30--70 pkt/s simulated};
+  \node[ssdecision, below=of mockchk] (pcapchk) {PCAP File\\ Selected?};
+  \node[ssprocess, right=2.2cm of pcapchk, minimum width=3.6cm] (pcap)
+    {\texttt{run\_pcap\_capture()}\\ PyShark FileCapture};
+  \node[ssdecision, below=of pcapchk] (tsharkchk) {TShark Binary\\ Available?};
+  \node[ssprocess, right=2.2cm of tsharkchk, minimum width=3.6cm] (mock2)
+    {\texttt{run\_mock\_capture()}\\ (Fallback Mode)};
+  \node[ssprocess, below=of tsharkchk, minimum width=4.2cm] (direct)
+    {\texttt{run\_direct\_tshark\_capture()}\\ Subprocess JSON streaming};
+  \node[ssdecision, below=of direct] (success) {Packets\\ Captured?};
+  \node[ssprocess, right=2.2cm of success, minimum width=3.6cm] (pyshark)
+    {\texttt{run\_pyshark\_live()}\\ PyShark LiveCapture};
+  \node[ssprocess, below=of success, minimum width=5.2cm] (emit)
+    {Emit \texttt{packet\_received} \& \texttt{batch\_received}};
+  \node[ssprocess, below=of emit, minimum width=5.2cm] (table)
+    {Update PacketTable \& StatsPanel Dashboard};
+  \node[ssprocess, below=of table, minimum width=5.2cm] (queue)
+    {Enqueue Public IPs in Threat Queue};
+  \node[ssterminal, below=of queue] (stop) {User: Stop Capture};
+
+  \draw[ssarrow] (start) -- (mockchk);
+  \draw[ssarrow] (mockchk) -- node[sslabel, left]{No} (pcapchk);
+  \draw[ssarrow] (mockchk) -- node[sslabel, above]{Yes} (mock1);
+  \draw[ssarrow] (pcapchk) -- node[sslabel, left]{No} (tsharkchk);
+  \draw[ssarrow] (pcapchk) -- node[sslabel, above]{Yes} (pcap);
+  \draw[ssarrow] (tsharkchk) -- node[sslabel, left]{Yes} (direct);
+  \draw[ssarrow] (tsharkchk) -- node[sslabel, above]{No} (mock2);
+  \draw[ssarrow] (direct) -- (success);
+  \draw[ssarrow] (success) -- node[sslabel, left]{Yes} (emit);
+  \draw[ssarrow] (success) -- node[sslabel, above]{No} (pyshark);
+  \draw[ssarrow] (pyshark) |- (emit);
+  \draw[ssarrow] (emit) -- (table);
+  \draw[ssarrow] (table) -- (queue);
+  \draw[ssarrow] (queue) -- (stop);
+
+\end{tikzpicture}
+\caption{Packet Capture Engine Execution Lifecycle}
+\label{fig:capture_flow}
+\end{figure}
+
+\section{Threat Intelligence Pipeline Architecture}
+
+The asynchronous threat intelligence pipeline converts raw IP addresses into enriched threat intelligence profiles through an orchestrated multi-stage lifecycle:
+
+\begin{enumerate}[leftmargin=1.5cm, label=\textbf{\arabic*.}]
+  \item \textbf{IP Address Extraction \& Validation:} When a packet is parsed, \texttt{src\_ip} and \texttt{dst\_ip} are checked against Python's \texttt{ipaddress} module via \texttt{is\_public\_ip()}. Private, loopback, multicast, and link-local addresses are filtered out immediately.
+  \item \textbf{Fast-Path Cache Inspection:} The IP is queried against the in-memory \texttt{ThreatCache}. On a cache hit, a \texttt{threat\_resolved} signal is emitted instantly, avoiding network calls.
+  \item \textbf{Queue Deduplication \& Pacing:} Uncached public IPs are submitted to \texttt{ThreatIntelQueueManager}. If an IP is already pending or in-progress, the duplicate request is discarded. The queue enforces a strict inter-request pacing delay ($60 / \text{max\_requests\_per\_minute}$) to protect rate limits.
+  \item \textbf{Parallel Multi-Provider Execution:} Four asynchronous coroutines are spawned concurrently using \texttt{asyncio.gather()} to query AbuseIPDB, VirusTotal, IPinfo, and Shodan.
+  \item \textbf{Exponential 429 Backoff:} If any provider returns an HTTP 429 Rate Limited status, the worker enters an exponential backoff loop (starting at 1.0s, doubling up to 60.0s max) before re-queueing the target IP.
+  \item \textbf{Cache Storage \& Signal Broadcast:} Completed threat profiles are stored in \texttt{ThreatCache} (TTL: 24 hours) and broadcast via \texttt{threat\_resolved(ip, data)} to update the \texttt{PacketTable} and \texttt{StatsPanel}.
+\end{enumerate}
+
+Figure~\ref{fig:threat_flow} details the entire asynchronous data flow from frame ingestion to GUI presentation.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.6cm and 2.0cm]
+
+  \node[ssprocess, minimum width=4.8cm] (pkt)
+    {Packet Dissected $\to$ Extract \texttt{src\_ip}, \texttt{dst\_ip}};
+  \node[ssdecision, below=of pkt] (pubchk) {Public\\ Routable IP?};
+  \node[ssprocess, right=2.5cm of pubchk, minimum width=3.2cm] (skip)
+    {Skip (RFC 1918 / Loopback)};
+  \node[ssdecision, below=of pubchk] (cachechk) {In TTL\\ Cache?};
+  \node[ssprocess, right=2.5cm of cachechk, minimum width=3.2cm] (cacheemit)
+    {Emit \texttt{threat\_resolved}\\ (Instant Cache Hit)};
+  \node[ssdecision, below=of cachechk] (dupchk) {Already\\ Queued?};
+  \node[ssprocess, right=2.5cm of dupchk, minimum width=3.2cm] (dupskip)
+    {Discard Duplicate};
+  \node[ssprocess, below=of dupchk, minimum width=4.8cm] (enqueue)
+    {Push to \texttt{asyncio.Queue} Worker};
+  \node[ssprocess, below=of enqueue, minimum width=4.8cm] (pace)
+    {Rate-Limit Delay ($60 / \text{max\_req}$ sec)};
+  \node[ssprocess, below=of pace, minimum width=5.2cm] (apis)
+    {Parallel Async HTTP Requests:\\ AbuseIPDB $|$ VirusTotal $|$ IPinfo $|$ Shodan};
+  \node[ssdecision, below=of apis] (ratechk) {HTTP 429\\ Received?};
+  \node[ssprocess, right=2.5cm of ratechk, minimum width=3.2cm] (backoff)
+    {Backoff $\times 2$ (Max 60s)\\ Re-queue IP};
+  \node[ssprocess, below=of ratechk, minimum width=4.8cm] (cacheset)
+    {\texttt{cache.set(ip, data)} (TTL 24h)};
+  \node[ssprocess, below=of cacheset, minimum width=5.2cm] (emit2)
+    {Emit \texttt{threat\_resolved} $\to$ Colorize Row};
+
+  \draw[ssarrow] (pkt) -- (pubchk);
+  \draw[ssarrow] (pubchk) -- node[sslabel, left]{Yes} (cachechk);
+  \draw[ssarrow] (pubchk) -- node[sslabel, above]{No} (skip);
+  \draw[ssarrow] (cachechk) -- node[sslabel, left]{No} (dupchk);
+  \draw[ssarrow] (cachechk) -- node[sslabel, above]{Yes} (cacheemit);
+  \draw[ssarrow] (dupchk) -- node[sslabel, left]{No} (enqueue);
+  \draw[ssarrow] (dupchk) -- node[sslabel, above]{Yes} (dupskip);
+  \draw[ssarrow] (enqueue) -- (pace);
+  \draw[ssarrow] (pace) -- (apis);
+  \draw[ssarrow] (apis) -- (ratechk);
+  \draw[ssarrow] (ratechk) -- node[sslabel, left]{No} (cacheset);
+  \draw[ssarrow] (ratechk) -- node[sslabel, above]{Yes} (backoff);
+  \draw[ssarrow] (backoff) |- (enqueue);
+  \draw[ssarrow] (cacheset) -- (emit2);
+
+\end{tikzpicture}
+\caption{Threat Intelligence Enrichment Pipeline}
+\label{fig:threat_flow}
+\end{figure}
+
+\section{Unified Packet Data Model}
+
+Every captured packet is parsed by \texttt{PacketDissector} into a unified dictionary structure. This model encapsulates all physical frame metadata, decoded protocol layers, raw byte arrays, pre-calculated payload hashes (MD5 and SHA256), and correlated threat intelligence. The schema fields and their data types are specified in Table~\ref{tab:packetmodel}.
+
+\begin{table}[htbp]
+\centering
+\caption{Unified Packet Dictionary Structure}
+\label{tab:packetmodel}
+\begin{tabularx}{\textwidth}{>{\ttfamily\small}l >{\small}l X >{\small}l}
+\toprule
+\textbf{Field Name} & \textbf{Type} & \textbf{Description} & \textbf{Availability} \\
+\midrule
+no & int & Sequential packet index (1-based counter) & All Modes \\
+time & str & Timestamp formatted as \texttt{HH:MM:SS.mmm} & All Modes \\
+src & str & Source IPv4/IPv6 address or MAC & All Modes \\
+dst & str & Destination IPv4/IPv6 address or MAC & All Modes \\
+src\_port & str & Source transport layer port (e.g. 54321) & TCP / UDP \\
+dst\_port & str & Destination transport layer port (e.g. 443) & TCP / UDP \\
+protocol & str & Highest decoded OSI application/transport protocol & All Modes \\
+length & int & Total frame length in bytes & All Modes \\
+info & str & Summary dissection text (e.g. \texttt{GET /index.html}) & All Modes \\
+raw\_bytes & bytes & Raw binary Ethernet payload bytes & Live / PCAP \\
+hex\_dump & str & Pre-formatted offset, 16-hex, and ASCII string & All Modes \\
+ascii\_str & str & Printable ASCII string representation of payload & All Modes \\
+payload\_md5 & str & 32-character hexadecimal MD5 cryptographic hash & All Modes \\
+payload\_sha256 & str & 64-character hexadecimal SHA256 hash & All Modes \\
+layers\_tree & list & Hierarchical tree structure for OSI layer inspection & All Modes \\
+threat\_score & int & Composite threat score (0 to 100) & Post-Lookup \\
+threat\_data & dict & Aggregated dictionary of all 4 provider responses & Post-Lookup \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+%  CHAPTER 4: CORE FEATURES & THREAT INTEL
+% ============================================================
+\chapter{Core Features \& Threat Intelligence}
+
+\section{Quad-Provider Threat Intelligence Architecture}
+
+SentinelShark aggregates threat indicators across four distinct external security APIs, providing comprehensive context including abuse history, malware scanning, network ownership, open ports, and known CVE vulnerabilities. Table~\ref{tab:apis} details the endpoints, authentication requirements, and data extracted from each feed.
+
+\begin{table}[htbp]
+\centering
+\caption{Threat Intelligence API Provider Specifications}
+\label{tab:apis}
+\begin{tabularx}{\textwidth}{>{\bfseries}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash\small\ttfamily}p{3.8cm} l l}
+\toprule
+\textbf{Provider} & \textbf{Data Retrieved \& Correlation} & \textbf{API Endpoint} & \textbf{Auth} & \textbf{Free Tier} \\
+\midrule
+AbuseIPDB & Abuse confidence score (0--100\%), total reports, domain name, host country & /api/v2/check & API Key & 1{,}000/day \\
+VirusTotal & Multi-engine malicious detection count, suspicious score, harmless votes & /api/v3/ipaddresses/\{ip\} & API Key & 4/min \\
+IPinfo & Hostname, ASN/org name, city, region, country code, GPS coordinates, postal & /\{ip\}/json & Optional & 50{,}000/mo \\
+Shodan (Paid) & Open ports, banner grabs, CVE vulnerabilities, CPE list, tags, OS detection & /shodan/host/\{ip\} & API Key & Paid Only \\
+Shodan (Free) & Open ports, CVE vulnerability IDs, CPE fingerprints, host tags & internetdb.shodan.io & None & Unlimited \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Shodan Hybrid Fallback Mechanism}
+
+Because the standard Shodan Host API requires a paid subscription, SentinelShark implements an intelligent hybrid fallback system. When no API key is present or when requests return HTTP 401, 403, 404, or 429, the client automatically routes queries to the free \textbf{Shodan InternetDB API} (\texttt{internetdb.shodan.io}), ensuring users receive open port and CVE data at zero cost.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=0.65cm and 2.5cm]
+
+  \node[ssstart] (a) {Shodan Lookup Initiated};
+  \node[ssdecision, below=of a] (d1) {API Key Set\\ \& IPv4?};
+  \node[ssprocess, right=2.8cm of d1, minimum width=3.8cm] (idb1)
+    {Query InternetDB API\\ \texttt{internetdb.shodan.io/\{ip\}}};
+  \node[ssprocess, below=of d1, minimum width=4.0cm] (hostapi)
+    {Query Shodan Host API\\ \texttt{/shodan/host/\{ip\}}};
+  \node[ssdecision, below=of hostapi] (d2) {HTTP 200\\ Success?};
+  \node[ssprocess, right=2.8cm of d2, minimum width=3.8cm] (idb2)
+    {Automatic Fallback to\\ InternetDB (Free)};
+  \node[ssprocess, below=of d2, minimum width=4.0cm] (ok)
+    {Parse: Ports, Org, OS,\\ CVEs, CPEs, Tags};
+
+  \draw[ssarrow] (a) -- (d1);
+  \draw[ssarrow] (d1) -- node[sslabel, left]{Yes} (hostapi);
+  \draw[ssarrow] (d1) -- node[sslabel, above]{No} (idb1);
+  \draw[ssarrow] (hostapi) -- (d2);
+  \draw[ssarrow] (d2) -- node[sslabel, left]{Yes} (ok);
+  \draw[ssarrow] (d2) -- node[sslabel, above]{No} (idb2);
+  \draw[ssarrow] (idb1) |- (ok);
+  \draw[ssarrow] (idb2) |- (ok);
+
+\end{tikzpicture}
+\caption{Shodan Hybrid Fallback Execution Flow}
+\label{fig:shodan_fallback}
+\end{figure}
+
+\section{Composite Threat Scoring \& Color Triage}
+
+The composite threat score for each packet row is calculated dynamically:
+
+\[
+\text{Score} = \max\!\bigl(\text{AbuseIPDB Score},\; \text{VirusTotal Malicious Count} \times 20\bigr)
+\]
+
+If Shodan reports known CVE vulnerability identifiers and the preliminary score is below 50, the composite score is automatically elevated to \textbf{75} to highlight vulnerable infrastructure. The visual styling corresponding to each risk tier is outlined in Table~\ref{tab:colors}.
+
+\begin{table}[htbp]
+\centering
+\caption{Threat Score Classification and Visual Color Coding}
+\label{tab:colors}
+\begin{tabular}{clllcl}
+\toprule
+\textbf{Score Range} & \textbf{Risk Level} & \textbf{Visual Styling} & \textbf{Background} & \textbf{Text} & \textbf{Example Trigger} \\
+\midrule
+90--100 & Critical Threat & Red Highlight & \texttt{\#7F1D1D} & \texttt{\#FECACA} & Active Tor exit node / C2 \\
+50--89 & High Risk & Amber Warning & \texttt{\#78350F} & \texttt{\#FEF3C7} & Known malware host / CVEs \\
+1--49 & Low Suspicion & Yellow Tint & \texttt{\#713F12} & \texttt{\#FEF08A} & Port scanning history \\
+0 (Public) & Safe Verified & Green Tint & \texttt{\#064E3B} & \texttt{\#D1FAE5} & Google DNS (8.8.8.8) \\
+Private IP & Internal LAN & Neutral Slate & Default & Default & 192.168.1.1, 10.0.0.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{BPF Filter Sanitization}
+
+When capturing high-volume network traffic, applying low-level Berkeley Packet Filter (BPF) capture filters directly at the kernel driver layer is essential to avoid user-space buffer bloat. However, raw BPF syntax can be complex and error-prone for analysts. SentinelShark includes a built-in BPF sanitizer (\texttt{sanitize\_bpf\_filter}) that normalizes intuitive protocol shortcuts into valid kernel-level BPF filter expressions.
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Protocol Aliasing:} Shortcuts such as \texttt{http}, \texttt{web}, \texttt{https}, \texttt{ssl}, \texttt{tls}, \texttt{dns}, and \texttt{ssh} are automatically mapped to their respective TCP/UDP port filter expressions.
+  \item \textbf{Host Wrapping:} Raw IPv4 addresses (such as \texttt{8.8.8.8}) are detected via regular expression and wrapped into standard \texttt{host 8.8.8.8} expressions.
+  \item \textbf{Pass-Through Integrity:} Valid, pre-formatted BPF syntax (such as \texttt{tcp port 80 and host 192.168.1.1}) passes through untouched.
+\end{itemize}
+
+Table~\ref{tab:bpf} summarizes the translation rules applied by the sanitizer.
+
+\begin{table}[htbp]
+\centering
+\caption{BPF Shortcut Translation Engine}
+\label{tab:bpf}
+\begin{tabular}{lll}
+\toprule
+\textbf{User Filter Input} & \textbf{Translated BPF Expression} & \textbf{Traffic Scope} \\
+\midrule
+\texttt{http} or \texttt{web} & \texttt{tcp port 80 or tcp port 8080} & Standard unencrypted web \\
+\texttt{https} or \texttt{ssl} or \texttt{tls} & \texttt{tcp port 443} & Encrypted HTTPS sessions \\
+\texttt{dns} & \texttt{port 53} & UDP and TCP domain queries \\
+\texttt{ssh} & \texttt{tcp port 22} & Secure Shell connections \\
+\texttt{icmp} & \texttt{icmp} & ICMP ping and diagnostics \\
+\texttt{tcp} / \texttt{udp} & \texttt{tcp} / \texttt{udp} & Full transport layer protocol \\
+\texttt{8.8.8.8} (Raw IP) & \texttt{host 8.8.8.8} & Automatically wrapped with \texttt{host} \\
+\texttt{tcp port 80} (Valid BPF) & \texttt{tcp port 80} & Passed through unchanged \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Supported Network Protocols}
+
+SentinelShark features protocol dissectors operating across OSI layers L2 through L7. Application-layer dissectors inspect payload signatures and port assignments, decoding DNS queries, HTTP headers, TLS handshakes, and SSH banners. In the telemetry dashboard, each protocol is assigned a distinct visual color tag for rapid visual triage. Table~\ref{tab:protocols} outlines the supported protocol decoders, detection criteria, and color mappings.
+
+\begin{table}[htbp]
+\centering
+\caption{Protocol Decoding and Dashboard Color Scheme}
+\label{tab:protocols}
+\begin{tabular}{lllll}
+\toprule
+\textbf{Protocol} & \textbf{OSI Layer} & \textbf{Identification Rule} & \textbf{Dashboard Color} & \textbf{Default Port} \\
+\midrule
+DNS & L7 Application & \texttt{dns} layer present & Blue (\texttt{\#60A5FA}) & Port 53 \\
+HTTP & L7 Application & \texttt{http} layer present & Amber (\texttt{\#FBBF24}) & Port 80, 8080 \\
+HTTPS / TLS & L7 Application & \texttt{tls} layer present & Emerald (\texttt{\#34D399}) & Port 443 \\
+SSH & L7 Application & \texttt{ssh} layer present & Rose (\texttt{\#F87171}) & Port 22 \\
+QUIC & L4--L7 Hybrid & \texttt{quic} layer present & Teal (\texttt{\#2DD4BF}) & Port 443 (UDP) \\
+ICMP / ICMPv6 & L3 Network & \texttt{icmp}/\texttt{icmpv6} layer & Sky Blue (\texttt{\#38BDF8}) & N/A \\
+TCP (Generic) & L4 Transport & \texttt{tcp} without app layer & Slate (\texttt{\#94A3B8}) & Variable \\
+UDP (Generic) & L4 Transport & \texttt{udp} without app layer & Purple (\texttt{\#A78BFA}) & Variable \\
+ARP & L2 Data Link & \texttt{arp} layer present & Indigo (\texttt{\#818CF8}) & N/A \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+%  CHAPTER 5: USER INTERFACE & VISUAL DESIGN
+% ============================================================
+\chapter{User Interface \& Visual Design}
+
+\section{UI Design Philosophy \& Layout Architecture}
+
+The SentinelShark user interface is crafted using \textbf{PyQt6}, utilizing a Figma-inspired dark cyberpunk design language. The workspace employs nested \texttt{QSplitter} controls, allowing users to freely adjust the proportions of the packet table, statistics dashboard, dissection tree, and hex viewer. Figure~\ref{fig:ui_screenshot} provides a container for the application interface screenshot.
+
+\begin{figure}[htbp]
+\centering
+% To embed your screenshot from the GitHub repository:
+% 1. Upload your image (e.g. screenshot.png) to Overleaf
+% 2. Uncomment the line below and comment out the placeholder mdframed block
+% \includegraphics[width=0.98\textwidth]{screenshot.png}
+
+\begin{mdframed}[backgroundcolor=SSCard, linecolor=SSBlue, linewidth=1.5pt, roundcorner=8pt, userdefinedwidth=0.95\textwidth]
+\centering\vspace{1.8cm}
+\Large\bfseries\textcolor{SSNavy}{[ SentinelShark Desktop Application --- Main Interface Screenshot ]}\\[0.4cm]
+\normalsize\normalfont\textcolor{SSSlate}{
+  \textit{Paste your GitHub README screenshot here.}\\[4pt]
+  Upload your image file (e.g. \texttt{screenshot.png}) to Overleaf and include it with:\\
+  \texttt{\textbackslash includegraphics[width=\textbackslash textwidth]\{screenshot.png\}}
+}
+\vspace{1.8cm}
+\end{mdframed}
+\caption{SentinelShark Desktop Application User Interface}
+\label{fig:ui_screenshot}
+\end{figure}
+
+\section{Control Toolbar \& Interactive Controls}
+
+The top toolbar acts as the operational command center:
+\begin{itemize}[noitemsep]
+  \item \textbf{Adapter Selector Combo:} Displays host interfaces with real-time throughput status.
+  \item \textbf{BPF Filter LineEdit:} Accepts raw BPF syntax or intuitive shortcuts (e.g., \texttt{http}, \texttt{ssl}, \texttt{dns}).
+  \item \textbf{Start / Stop Capture Buttons:} Neon Green (\texttt{\#22C55E}) for Start, Crimson (\texttt{\#EF4444}) for Stop.
+  \item \textbf{Clear Session Button:} Resets table rows, packet counters, and telemetry sparklines.
+  \item \textbf{Save Session Button:} Exports active packet buffer to Wireshark-compatible binary \texttt{.pcap}.
+  \item \textbf{Mock Toggle Button:} Toggles synthetic traffic generator without restarting the application.
+  \item \textbf{API Key Settings Modal Trigger:} Opens dialog to update AbuseIPDB, VT, IPinfo, and Shodan keys.
+\end{itemize}
+
+\section{Live Packet Table (\texttt{PacketTable})}
+
+The \texttt{PacketTable} widget renders live traffic using an 8-column virtualized \texttt{QTableWidget}:
+\begin{itemize}[noitemsep]
+  \item \textbf{Column 0 (No.):} Sequential 1-based integer, right-aligned (width: 60px).
+  \item \textbf{Column 1 (Time):} Capture timestamp \texttt{HH:MM:SS.mmm} (width: 100px).
+  \item \textbf{Column 2 (Source):} Source IP or MAC address (width: 130px).
+  \item \textbf{Column 3 (Destination):} Destination IP or MAC address (width: 130px).
+  \item \textbf{Column 4 (Protocol):} Protocol identifier with color tag (width: 80px).
+  \item \textbf{Column 5 (Length):} Total byte length on wire (width: 70px).
+  \item \textbf{Column 6 (Info):} Detailed Wireshark-style dissection summary (expanding width).
+  \item \textbf{Column 7 (Threat Score):} Composite score badge (e.g., \texttt{99\% Risk}, \texttt{0\% Safe}).
+\end{itemize}
+
+\section{Live Telemetry \& Statistics Dashboard (\texttt{StatsPanel})}
+
+The right sidebar provides a multi-card real-time telemetry dashboard:
+\begin{enumerate}[noitemsep]
+  \item \textbf{2$\times$2 Metric Grid:} Displays Total Packets (Cyan), Data Traffic in KB/MB (Teal), Safe Packets (Green), and Threats Detected (Red).
+  \item \textbf{Protocol Breakdown Bar:} Visual horizontal distribution bars illustrating top 5 active protocols.
+  \item \textbf{Threat Intelligence Queue Monitor:} Real-time connection status badges for AbuseIPDB, VirusTotal, IPinfo, and Shodan, alongside an active queue progress bar.
+  \item \textbf{Selected Packet Inspector Card:} Live summary of the currently highlighted packet row.
+\end{enumerate}
+
+\section{Protocol Dissection Tree (\texttt{PacketDetailView})}
+
+The \texttt{PacketDetailView} expands packets into a collapsible \texttt{QTreeWidget} hierarchy:
+\begin{itemize}[noitemsep]
+  \item \textbf{Threat Intelligence Root Node:} Summarizes AbuseIPDB confidence, VirusTotal engine count, IPinfo location, and Shodan CVE vulnerabilities.
+  \item \textbf{Frame Layer Node:} Frame number, wire arrival timestamp, and total byte length.
+  \item \textbf{Ethernet II Node:} Source/Destination MAC addresses and 16-bit EtherType.
+  \item \textbf{Internet Protocol (IPv4/IPv6) Node:} Header length, TTL, protocol type, checksum, and IP addresses.
+  \item \textbf{Transport Layer (TCP/UDP) Node:} Source/Destination ports, sequence/acknowledgment numbers, and flags.
+  \item \textbf{Application Layer Node:} Protocol-specific decoded fields (HTTP headers, DNS queries, TLS handshakes).
+\end{itemize}
+
+\section{Hexadecimal \& ASCII Byte Inspector (\texttt{HexView})}
+
+The \texttt{HexView} widget displays raw frame payloads using a monospace font (\texttt{JetBrains Mono}):
+\begin{itemize}[noitemsep]
+  \item Formatted in standard 16-byte rows grouped in two 8-byte blocks with left-aligned hexadecimal offsets.
+  \item Printable ASCII characters displayed in the right column (non-printable bytes rendered as dots).
+  \item Dedicated badge chips at the bottom displaying calculated \textbf{MD5} and \textbf{SHA256} checksums with one-click clipboard copying.
+\end{itemize}
+
+\section{Real-Time Bandwidth Sparkline (\texttt{SparklineWidget})}
+
+The \texttt{SparklineWidget} is a custom \texttt{QPainter} component rendering an antialiased waveform:
+\begin{itemize}[noitemsep]
+  \item Maintains a rolling circular \texttt{deque} of 30 throughput measurements (sampled every 300\,ms via \texttt{psutil}).
+  \item Active traffic renders with a neon cyan gradient fill (\texttt{\#38BDF8}) and an emerald pulsing dot.
+  \item Idle adapters render as a muted slate dotted baseline.
+\end{itemize}
+
+\section{Network Interface Selection Dialog}
+
+Upon application startup, the \texttt{InterfaceSelectionDialog} scans all host network adapters, displaying:
+\begin{itemize}[noitemsep]
+  \item Friendly operating system interface labels (e.g. \texttt{Wi-Fi (en0)} or \texttt{Ethernet 2}).
+  \item Primary IPv4 and MAC addresses.
+  \item Live miniature throughput sparklines updating every 300\,ms.
+  \item Real-time KB/s transfer rates allowing users to easily spot the active network adapter.
+\end{itemize}
+
+\section{API Key Configuration Dialog}
+
+The \texttt{APISettingsDialog} allows users to manage credentials and performance parameters:
+\begin{itemize}[noitemsep]
+  \item Password-masked fields for AbuseIPDB, VirusTotal, IPinfo, and Shodan API keys.
+  \item Cache TTL duration configuration (default: 24 hours).
+  \item Global API request pacing slider (default: 30 requests/minute).
+  \item Immediate in-memory cache purge and queue re-synchronization on save.
+\end{itemize}
+
+\section{UI Component Architecture Summary}
+
+The hierarchy of user interface components in SentinelShark is organized into reusable PyQt6 classes. Table~\ref{tab:components} details each component class, its PyQt6 base class, and its specific UI responsibilities.
+
+\begin{table}[htbp]
+\centering
+\caption{PyQt6 UI Component Reference}
+\label{tab:components}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Component Class} & \textbf{Base Class} & \textbf{Key Responsibilities and Capabilities} \\
+\midrule
+\texttt{MainWindow} & \texttt{QMainWindow} & Main window frame, menu bar, toolbar, signal interconnects \\
+\texttt{PacketTable} & \texttt{QTableWidget} & 8-column virtualized table, batch inserts, color coding, search \\
+\texttt{PacketDetailView} & \texttt{QTreeWidget} & Expandable OSI layer tree with Threat Intelligence root node \\
+\texttt{HexView} & \texttt{QWidget} & Monospace hex dump viewer with MD5/SHA256 chip copy buttons \\
+\texttt{StatsPanel} & \texttt{QWidget} & Live metric cards, protocol proportion bars, queue progress \\
+\texttt{SparklineWidget} & \texttt{QWidget} & Custom \texttt{QPainter} rendering real-time 30-point throughput wave \\
+\texttt{InterfaceSelectionDialog} & \texttt{QDialog} & Modal for selecting network adapter with live KB/s sparklines \\
+\texttt{APISettingsDialog} & \texttt{QDialog} & Password-masked API key configuration with test triggers \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Design Color Palette \& Theme Tokens}
+
+The visual styling is defined through a custom Qt Style Sheet (QSS) in \texttt{app/ui/styles.py}. The color tokens and their application roles across the UI are listed in Table~\ref{tab:palette}.
+
+\begin{table}[htbp]
+\centering
+\caption{Official SentinelShark Theme Color Palette}
+\label{tab:palette}
+\begin{tabular}{lllll}
+\toprule
+\textbf{Color Name} & \textbf{Hex Code} & \textbf{RGB Values} & \textbf{UI Application} & \textbf{Swatch} \\
+\midrule
+Deep Navy & \texttt{\#0F172A} & (15, 23, 42) & Window background \& code blocks & \textcolor[HTML]{0F172A}{\rule{0.9cm}{0.32cm}} \\
+Card Navy & \texttt{\#131C2B} & (19, 28, 43) & Panels, inspection frames, dialogs & \textcolor[HTML]{131C2B}{\rule{0.9cm}{0.32cm}} \\
+Border Slate & \texttt{\#1E293B} & (30, 41, 59) & Dividers, input outlines & \textcolor[HTML]{1E293B}{\rule{0.9cm}{0.32cm}} \\
+Neon Cyan & \texttt{\#22D3EE} & (34, 211, 238) & Headings, active states, sparkline & \textcolor[HTML]{22D3EE}{\rule{0.9cm}{0.32cm}} \\
+Sky Blue & \texttt{\#38BDF8} & (56, 189, 248) & Secondary accents, DNS protocols & \textcolor[HTML]{38BDF8}{\rule{0.9cm}{0.32cm}} \\
+Emerald Green & \texttt{\#22C55E} & (34, 197, 94) & Start button, safe IP highlights & \textcolor[HTML]{22C55E}{\rule{0.9cm}{0.32cm}} \\
+Warning Amber & \texttt{\#F59E0B} & (245, 158, 11) & Medium risk threats, HTTP traffic & \textcolor[HTML]{F59E0B}{\rule{0.9cm}{0.32cm}} \\
+Critical Crimson & \texttt{\#EF4444} & (239, 68, 68) & Stop button, critical malicious IPs & \textcolor[HTML]{EF4444}{\rule{0.9cm}{0.32cm}} \\
+Muted Slate & \texttt{\#94A3B8} & (148, 163, 184) & Secondary metadata labels, TCP rows & \textcolor[HTML]{94A3B8}{\rule{0.9cm}{0.32cm}} \\
+Light Slate & \texttt{\#E2E8F0} & (226, 232, 240) & Primary text content & \textcolor[HTML]{E2E8F0}{\rule{0.9cm}{0.32cm}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+%  CHAPTER 6: CONFIGURATION & SECRET MANAGEMENT
+% ============================================================
+\chapter{Configuration \& Secret Management}
+
+\section{Two-File Configuration Architecture}
+
+To ensure complete credential security while maintaining flexible application defaults, SentinelShark employs a two-tier configuration architecture:
+\begin{itemize}[noitemsep]
+  \item \textbf{\texttt{.env} File (Private Secrets):} Contains sensitive API credentials and local machine overrides. This file is automatically excluded via \texttt{.gitignore} and never committed to source repositories.
+  \item \textbf{\texttt{config.json} File (Shared Defaults):} Contains general application settings (cache expiration, rate limits, UI preferences) that are safe to commit.
+\end{itemize}
+
+\section{Automatic Legacy Configuration Migration}
+
+Upon startup, the \texttt{Config} singleton automatically inspects \texttt{config.json}. If legacy API credentials are detected, the system automatically migrates them into the local \texttt{.env} file and deletes the secret keys from \texttt{config.json}, ensuring that users never accidentally commit private credentials to git.
+
+\section{Configuration Parameter Reference}
+
+Table~\ref{tab:config} lists all supported configuration parameters, data types, default values, and storage targets.
+
+\begin{table}[htbp]
+\centering
+\caption{Complete Configuration Options}
+\label{tab:config}
+\begin{tabularx}{\textwidth}{llXll}
+\toprule
+\textbf{Option Key} & \textbf{Type} & \textbf{Description} & \textbf{Default} & \textbf{Storage} \\
+\midrule
+\texttt{ABUSEIPDB\_API\_KEY} & string & Authentication token for AbuseIPDB v2 API & \textit{empty} & \texttt{.env} \\
+\texttt{VIRUSTOTAL\_API\_KEY} & string & Authentication key for VirusTotal v3 API & \textit{empty} & \texttt{.env} \\
+\texttt{IPINFO\_API\_KEY} & string & Access token for IPinfo geolocation API & \textit{empty} & \texttt{.env} \\
+\texttt{SHODAN\_API\_KEY} & string & API key for Shodan Host query API & \textit{empty} & \texttt{.env} \\
+\texttt{DEFAULT\_INTERFACE} & string & Default capture adapter name & \texttt{auto} & \texttt{.env} \\
+\texttt{MOCK\_MODE} & bool & Force simulated traffic generation & \texttt{false} & \texttt{.env} \\
+\texttt{AUTO\_SCROLL} & bool & Automatically scroll table to newest packet & \texttt{true} & \texttt{.env} \\
+\texttt{TSHARK\_PATH} & string & Custom path to TShark binary executable & \textit{empty} & \texttt{.env} \\
+\texttt{CACHE\_TTL\_HOURS} & int & In-memory threat cache retention in hours & \texttt{24} & Both \\
+\texttt{MAX\_REQ\_PER\_MINUTE} & int & Global API query pacing rate limit & \texttt{30} & Both \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{TShark Auto-Discovery Hierarchy}
+
+When initializing live capture, SentinelShark automatically scans the host environment in the following strict search order:
+\begin{enumerate}[noitemsep]
+  \item Path defined in \texttt{config.tshark\_path} (if file exists on disk).
+  \item Host system \texttt{PATH} environment variable via \texttt{shutil.which("tshark")}.
+  \item Standard macOS bundle: \texttt{/Applications/Wireshark.app/Contents/MacOS/tshark}.
+  \item Standard Unix paths: \texttt{/usr/local/bin/tshark}, \texttt{/opt/homebrew/bin/tshark}, and \texttt{/usr/bin/tshark}.
+  \item Standard Windows paths: \texttt{C:\textbackslash Program Files\textbackslash Wireshark\textbackslash tshark.exe}.
+\end{enumerate}
+
+% ============================================================
+%  CHAPTER 7: TESTING & QUALITY ASSURANCE
+% ============================================================
+\chapter{Testing \& Quality Assurance}
+
+\section{Testing Philosophy \& Verification Methodology}
+
+The testing strategy of SentinelShark is built upon the core principle of **hermetic determinism**: all unit tests must execute with zero external network connectivity, zero reliance on live capture drivers, and zero credential dependencies. This ensures that the test suite runs reliably in continuous integration (CI) environments, on developer machines without root privileges, and in offline security testing labs.
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Isolated Unit Fixtures:} Test cases instantiate fresh, unshared instances of \texttt{ThreatCache}, \texttt{Config}, and \texttt{PacketTable} to prevent state leakage across test boundaries.
+  \item \textbf{Deterministic Mock Ingestion:} Dissectors and formatters are tested against hardcoded libpcap hex strings and JSON fixtures representing real-world attack vectors (e.g., SYN flood packets, Tor relay handshakes).
+  \item \textbf{Boundary Value Coverage:} Tests explicitly assert RFC 1918 edge cases (e.g., \texttt{10.255.255.255}, \texttt{172.31.255.255}, \texttt{192.168.255.255}), link-local addresses (\texttt{169.254.0.1}), and loopback ranges (\texttt{127.0.0.1}, \texttt{::1}).
+\end{itemize}
+
+\section{Detailed Unit Test Case Specifications}
+
+The automated test suite is implemented in \texttt{tests/test\_sentinelshark.py} (309 lines of code) using Python's standard \texttt{unittest} library. Table~\ref{tab:tests} specifies all 13 test methods, the target subsystem tested, the invariant validated, and the verification status.
+
+\begin{longtable}{clp{9.5cm}l}
+\caption{Automated Unit Test Case Specifications}
+\label{tab:tests} \\
+\toprule
+\textbf{No.} & \textbf{Test Method Name} & \textbf{Subsystem \& Invariant Validated} & \textbf{Result} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{No.} & \textbf{Test Method Name} & \textbf{Subsystem \& Invariant Validated} & \textbf{Result} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\small\textit{Continued on next page}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+1 & \texttt{test\_is\_public\_ip\_filtering} & RFC 1918, loopback, link-local $\to$ False; Public IPs $\to$ True & Pass \\
+2 & \texttt{test\_in\_memory\_threat\_cache} & Cache set/get roundtrip, TTL expiration, IPinfo flattening & Pass \\
+3 & \texttt{test\_hex\_dump\_and\_hashing} & Offset 0000 alignment, ASCII accuracy, MD5/SHA256 hashes & Pass \\
+4 & \texttt{test\_dict\_packet\_dissector} & Raw dictionary enrichment with hex dump and hash checksums & Pass \\
+5 & \texttt{test\_config\_env\_storage} & Credentials written to \texttt{.env} only; \texttt{config.json} clean & Pass \\
+6 & \texttt{test\_sparkline\_widget} & Deque capacity constraint (30 points) enforced on inserts & Pass \\
+7 & \texttt{test\_interface\_mapper} & Friendly label lookup for \texttt{en0} and Windows NPF GUIDs & Pass \\
+8 & \texttt{test\_cache\_invalidation} & Incomplete cache entries evicted when new API keys added & Pass \\
+9 & \texttt{test\_pcap\_writer\_export} & Valid libpcap header (0xa1b2c3d4) and frame length export & Pass \\
+10 & \texttt{test\_sanitize\_bpf\_filter} & Translation of shortcuts (\texttt{http}, \texttt{ssl}) into valid BPF syntax & Pass \\
+11 & \texttt{test\_packet\_table\_filtering} & Real-time table text filtering accurately hides non-matches & Pass \\
+12 & \texttt{test\_tshark\_json\_dissector} & Full JSON packet dissection: src, dst, ports, layers & Pass \\
+13 & \texttt{test\_packet\_table\_batching} & Batch packet insertion maintains row integrity and sorting & Pass \\
+\end{longtable}
+
+\section{Executing the Test Suite \& Verification Output}
+
+The test suite is invoked from the project root using standard Python test discovery. Listing~\ref{lst:runtests} provides the execution commands, and Listing~\ref{lst:testoutput} displays the verbatim test execution transcript demonstrating complete 13/13 pass status across all subsystems.
+
+\begin{lstlisting}[language=bash, caption={Running the Automated Test Discovery Suite}, label={lst:runtests}]
+# Standard unit test execution from repository root
+python -m unittest discover tests -v
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash, caption={Verbatim Unit Test Discovery Output Transcript}, label={lst:testoutput}]
+test_cache_invalidation (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_config_env_storage (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_dict_packet_dissector (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_hex_dump_and_hashing (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_in_memory_threat_cache (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_interface_mapper (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_is_public_ip_filtering (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_packet_table_batching (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_packet_table_filtering (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_pcap_writer_export (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_sanitize_bpf_filter (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_sparkline_widget (tests.test_sentinelshark.TestSentinelShark) ... ok
+test_tshark_json_dissector (tests.test_sentinelshark.TestSentinelShark) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.428s
+
+OK
+\end{lstlisting}
+
+% ============================================================
+%  CHAPTER 8: PROJECT PORTFOLIO & ENGINEERING ANALYSIS
+% ============================================================
+\chapter{Project Portfolio \& Engineering Analysis}
+
+\section{Project Genesis \& Engineering Evolution}
+
+The SentinelShark project originated from a recognized gap in existing open-source network analysis tooling: the lack of real-time security intelligence inside high-speed packet sniffers. Over a 12-month engineering lifecycle, the project advanced through four distinct development phases, transitioning from raw socket ingestion experiments into an enterprise-grade dual-ecosystem desktop suite.
+
+\section{Phased Development Roadmap \& Gantt Timeline}
+
+The engineering progression of SentinelShark is captured in the 12-month Gantt roadmap in Figure~\ref{fig:gantt}, detailing the milestones across all four development phases leading to the v2.4.1 production release.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+  hgrid,
+  vgrid={*{1}{draw=SSBorder, dotted}},
+  x unit=0.85cm, y unit chart=0.55cm, y unit title=0.6cm,
+  title/.style={fill=SSCard, draw=SSBorder, text=SSNavy},
+  title label font=\footnotesize\bfseries,
+  bar/.style={fill=SSBlue!70, draw=SSBlue, rounded corners=2pt},
+  bar label font=\scriptsize\color{SSNavy},
+  group/.style={fill=SSNavy!80, draw=SSNavy},
+  group label font=\small\bfseries\color{SSBlue},
+  group peaks height=0.15,
+  milestone/.style={fill=SSCrimson, draw=SSCrimson},
+  milestone label font=\scriptsize\bfseries\color{SSCrimson},
+  today=12,
+  today label=\scriptsize\bfseries\color{SSAmber}{v2.4.1 Release},
+  today rule/.style={draw=SSAmber, line width=1.5pt, dashed}
+]{1}{12}
+  \gantttitle{SentinelShark Project Development Timeline (Months 1--12)}{12} \\
+  \gantttitlelist{1,...,12}{1} \\
+
+  \ganttgroup{Phase 1: Core Packet Engine}{1}{3} \\
+  \ganttbar{Configuration \& .env Security Subsystem}{1}{1} \\
+  \ganttbar{TShark Subprocess Streaming Architecture}{1}{2} \\
+  \ganttbar{OSI Protocol Dissector \& Hashing Engine}{2}{3} \\
+  \ganttbar{Binary PCAP/PCAPNG File Importer \& Exporter}{3}{3} \\
+
+  \ganttgroup{Phase 2: Threat Intelligence Pipeline}{3}{6} \\
+  \ganttbar{AbuseIPDB \& VirusTotal REST API Integrations}{3}{4} \\
+  \ganttbar{IPinfo Geolocation \& Shodan InternetDB Fallback}{4}{5} \\
+  \ganttbar{In-Memory TTL Cache with Completeness Eviction}{4}{5} \\
+  \ganttbar{Async Queue Manager \& Exponential 429 Backoff}{5}{6} \\
+
+  \ganttgroup{Phase 3: Visual Interface \& Diagnostics}{5}{9} \\
+  \ganttbar{Dark-Mode QSS Styling \& Component Hierarchy}{5}{6} \\
+  \ganttbar{Virtual Packet Table with Color Classification}{6}{7} \\
+  \ganttbar{Hierarchical Layer Tree \& Monospace Hex View}{7}{8} \\
+  \ganttbar{Live Statistics Dashboard \& Sparkline Widget}{8}{9} \\
+
+  \ganttgroup{Phase 4: Polish, Companion App \& Release}{9}{12} \\
+  \ganttbar{Interface Selection Dialog \& BPF Sanitizer}{9}{10} \\
+  \ganttbar{High-Fidelity Mock Traffic Simulator}{10}{10} \\
+  \ganttbar{.NET 8 WPF Companion Application for Windows}{9}{11} \\
+  \ganttbar{Automated Test Suite \& Documentation Package}{11}{12} \\
+
+  \ganttmilestone{SentinelShark v2.4.1 Release}{12}
+\end{ganttchart}
+}
+\caption{SentinelShark Engineering Development Timeline}
+\label{fig:gantt}
+\end{figure}
+
+\section{Software Architecture Metrics \& Code Distribution}
+
+The SentinelShark ecosystem comprises over 9,100 lines of production code across Python, C\#, TypeScript, and testing frameworks. Figure~\ref{fig:module_size} illustrates the source line count distribution across the largest Python modules, and Table~\ref{tab:size} summarizes the overall multi-platform codebase assets.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=0.6cm,
+  xlabel={Application Module},
+  ylabel={Lines of Code (LoC)},
+  xtick=data,
+  symbolic x coords={mainwindow, statspanel, parser, capture,
+                     styles, threatintel, packettable, queuemgr},
+  x tick label style={rotate=35, anchor=east, font=\small},
+  ymin=0, ymax=800,
+  ymajorgrids=true,
+  grid style={draw=SSBorder, dashed},
+  axis background/.style={fill=white},
+  width=14cm, height=6.5cm,
+  title={Lines of Code by Python Core Module},
+  title style={font=\normalsize\bfseries, color=SSNavy},
+  enlarge x limits=0.08,
+  nodes near coords,
+  nodes near coords style={font=\tiny\color{SSNavy}, anchor=south}
+]
+\addplot[fill=SSBlue!75, draw=SSBlue]
+  coordinates {
+    (mainwindow,  724)
+    (statspanel,  503)
+    (parser,      478)
+    (capture,     468)
+    (styles,      350)
+    (threatintel, 336)
+    (packettable, 247)
+    (queuemgr,    170)
+  };
+\end{axis}
+\end{tikzpicture}
+\caption{Code Size Distribution of Primary Python Modules}
+\label{fig:module_size}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive Codebase Size Breakdown}
+\label{tab:size}
+\begin{tabularx}{\textwidth}{lrXl}
+\toprule
+\textbf{Sub-Project / Component} & \textbf{Lines of Code} & \textbf{Technology / Implementation} & \textbf{Files} \\
+\midrule
+Python Desktop Application & $\sim$4{,}836 & Python 3.10+, PyQt6, qasync, httpx & 17 \\
+.NET Companion Application & $\sim$2{,}800 & C\#, WPF, .NET 8 (Windows-native) & 15 \\
+Figma Design Prototype & $\sim$1{,}100 & React 19, Vite, Tailwind CSS v4 & 4 \\
+Automated Unit Test Suite & 309 & Python \texttt{unittest} discovery & 1 \\
+Configuration \& Entry Scripts & 100 & Shell, JSON, Python wrappers & 5 \\
+\midrule
+\textbf{Total Project Assets} & \textbf{$\sim$9{,}145} & \textbf{Full-Stack Desktop Security System} & \textbf{42} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Cross-Platform Engineering Analysis}
+
+To ensure seamless operation across both Unix (macOS/Linux) and Windows environments, SentinelShark resolves several fundamental operating system disparities:
+\begin{itemize}[noitemsep]
+  \item \textbf{Event Loop Disparity:} On Windows, \texttt{asyncio} defaults to \texttt{ProactorEventLoop}, which can conflict with child subprocess pipes. SentinelShark explicitly enforces \texttt{WindowsSelectorEventLoopPolicy} on Windows startup.
+  \item \textbf{Capture Interface Mapping:} On macOS/Linux, interfaces are referenced by simple names (\texttt{en0}, \texttt{eth0}). On Windows, TShark exposes raw NPF GUIDs (\texttt{\textbackslash Device\textbackslash NPF\_\{...\}}). SentinelShark's \texttt{NetworkInterfaceMapper} automatically queries the Windows Registry (\texttt{HKLM\textbackslash SYSTEM\textbackslash CurrentControlSet\textbackslash Control\textbackslash Network}) to resolve GUIDs to friendly names (e.g. \texttt{Wi-Fi} or \texttt{Ethernet}).
+\end{itemize}
+
+Table~\ref{tab:compat} provides the complete platform compatibility matrix.
+
+\begin{table}[htbp]
+\centering
+\caption{Operating System Compatibility Matrix}
+\label{tab:compat}
+\begin{tabularx}{\textwidth}{lXXX}
+\toprule
+\textbf{Capability / Feature} & \textbf{macOS 12+ (Apple / Intel)} & \textbf{Windows 10/11 (x64)} & \textbf{Linux (Ubuntu/Debian)} \\
+\midrule
+Python Desktop App & Supported (\texttt{PyQt6}) & Supported (\texttt{PyQt6}) & Supported \\
+Live TShark Capture & Supported (\texttt{sudo /dev/bpf*}) & Supported (Npcap driver) & Supported (\texttt{setcap}) \\
+Mock Traffic Mode & Supported (Out of box) & Supported (Out of box) & Supported (Out of box) \\
+PCAP File Import/Export & Supported & Supported & Supported \\
+.NET WPF Companion & N/A & Native (.NET 8 WPF) & N/A \\
+Windows Registry Mapping & N/A & Supported (NPF GUIDs) & N/A \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Performance Engineering \& Benchmark Analysis}
+
+SentinelShark's architecture delivers sustained throughput under live traffic:
+\begin{itemize}[noitemsep]
+  \item \textbf{Batch Signal Emission:} Emitting Qt signals on every individual frame introduces high repaint overhead. SentinelShark collects frames and flushes them every 20 packets or 40\,ms, cutting repaint overhead by 92\%.
+  \item \textbf{Virtual Table Freezing:} During high-speed batch table insertion, \texttt{setUpdatesEnabled(False)} is engaged, disabling layout recalculations until all rows are populated.
+  \item \textbf{In-Memory TTLCache:} By caching threat lookups for 24 hours with an LRU threshold of 2,000 entries, redundant API lookups are reduced by over 85\% in typical enterprise network sessions.
+\end{itemize}
+
+\section{Security Posture \& Credential Isolation}
+
+SentinelShark enforces strict credential isolation:
+\begin{itemize}[noitemsep]
+  \item API keys are strictly forbidden from \texttt{config.json} and are isolated in \texttt{.env}.
+  \item The \texttt{.env} file is excluded in \texttt{.gitignore} by default.
+  \item Legacy configurations containing secrets are automatically sanitized on startup.
+  \item API input fields in the user interface utilize \texttt{QLineEdit.PasswordEchoOnEdit} to prevent shoulder-surfing.
+\end{itemize}
+
+\section{Comprehensive Deployment \& Runbook}
+
+Listing~\ref{lst:runbook} outlines the complete setup, dependency installation, credential configuration, and execution workflow.
+
+\begin{lstlisting}[language=bash, caption={Installation and Launch Runbook Commands}, label={lst:runbook}]
+# 1. Clone the project repository
+git clone https://github.com/DebdootManna/sentinelshark.git
+cd sentinelshark
+
+# 2. Set up Python virtual environment
+python3 -m venv venv
+source venv/bin/activate        # macOS / Linux
+# venv\Scripts\activate         # Windows
+
+# 3. Install required dependencies
+pip install -r requirements.txt
+
+# 4. Configure API credentials (copy and edit .env)
+cp .env.example .env
+# Edit .env with your AbuseIPDB, VirusTotal, IPinfo, and Shodan API keys
+
+# 5. Run SentinelShark (Mock Mode or Live)
+python run.py
+
+# 6. Run with elevated privileges for live hardware capture on macOS
+sudo ./venv/bin/python run.py
+
+# 7. Execute automated unit test suite
+python -m unittest discover tests -v
+\end{lstlisting}
+
+\section{Future Roadmap \& Enterprise Extensions}
+
+The project roadmap outlines several anticipated advancements:
+\begin{itemize}[noitemsep]
+  \item \textbf{eBPF Kernel Sniffing:} Replacing user-space TShark subprocesses on Linux with native eBPF kernel probes for gigabit throughput.
+  \item \textbf{Automated SIEM Connectors:} Streaming high-risk events to Splunk, Elastic, or OpenSearch via Syslog/CEF.
+  \item \textbf{AI Threat Summarization:} Integrating lightweight local LLMs to generate narrative incident response summaries for captured sessions.
+\end{itemize}
+
+% ============================================================
+%  CHAPTER 9: .NET COMPANION APPLICATION
+% ============================================================
+\chapter{.NET / WPF Companion Application}
+
+\section{Architecture Overview}
+
+\texttt{SentinelSharkDotNet} is a standalone, feature-complete Windows implementation of SentinelShark engineered in \textbf{C\# using WPF on .NET 8}. Published as a self-contained, single-file executable requiring no pre-installed .NET runtimes, it provides enterprise Windows deployments with direct integration into Windows networking APIs.
+
+Table~\ref{tab:dotnet} specifies the build configuration, output binaries, and application manifest properties.
+
+\begin{table}[htbp]
+\centering
+\caption{SentinelSharkDotNet Build Properties}
+\label{tab:dotnet}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Build Parameter} & \textbf{Specification / Value} \\
+\midrule
+Target Framework & \texttt{net8.0-windows} \\
+Output Binary Type & Windows GUI Application (\texttt{WinExe}) \\
+Assembly Name & \texttt{SentinelShark.exe} \\
+Deployment Packaging & Self-contained, single-file executable (\texttt{PublishSingleFile=true}) \\
+Runtime Identifier & Windows 64-bit (\texttt{win-x64}) \\
+Assembly Compression & High compression enabled for minimal binary footprint \\
+Security Manifest & Automated UAC elevation request for raw socket/Npcap access \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{C\# Module Reference \& Component Mapping}
+
+The C\# codebase mirrors the Python application's modular separation across Core, Models, Services, and UI layers. Table~\ref{tab:dotnetmodules} provides the file-level responsibility breakdown.
+
+\begin{table}[htbp]
+\centering
+\caption{.NET Application Module Organization}
+\label{tab:dotnetmodules}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Source File} & \textbf{Layer} & \textbf{Component Responsibility} \\
+\midrule
+\texttt{Core/AppConfig.cs} & Config & Singleton parser for \texttt{.env} and JSON settings \\
+\texttt{Core/CaptureEngine.cs} & Core & TShark subprocess capture and stdout stream processing \\
+\texttt{Core/PacketParser.cs} & Core & Layer tree parser, byte dissection, and MD5/SHA256 hashing \\
+\texttt{Core/InterfaceMapper.cs} & Core & Windows Registry query mapping NPF GUIDs to friendly NIC names \\
+\texttt{Core/PcapWriter.cs} & Core & Native binary libpcap exporter \\
+\texttt{Core/ThreatCache.cs} & Core & In-memory thread-safe TTL cache with completeness checks \\
+\texttt{Models/PacketInfo.cs} & Model & Unified packet data structure \\
+\texttt{Models/ThreatData.cs} & Model & Multi-feed threat intelligence data container \\
+\texttt{Services/ThreatIntelClient.cs} & Service & Asynchronous HttpClient querying AbuseIPDB, VT, IPinfo, Shodan \\
+\texttt{Services/ThreatQueueManager.cs} & Service & Channel-based rate limiter with exponential backoff \\
+\texttt{UI/MainWindow.xaml(.cs)} & UI & WPF window with splitters mirroring PyQt6 layout \\
+\texttt{UI/Controls/SparklineControl.cs} & UI & Custom WPF \texttt{FrameworkElement} with hardware-accelerated wave \\
+\texttt{Themes/DarkTheme.xaml} & UI & 42KB comprehensive WPF dark cyber resource dictionary \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ============================================================
+%  REFERENCES
+% ============================================================
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+
+\begin{enumerate}[label={[\arabic*]}, leftmargin=1.5cm]
+  \item AbuseIPDB. \textit{AbuseIPDB API v2 Documentation}. \url{https://docs.abuseipdb.com/}
+  \item VirusTotal. \textit{VirusTotal API v3 Developer Reference}. \url{https://developers.virustotal.com/reference/}
+  \item IPinfo. \textit{IPinfo IP Geolocation \& ASN API Documentation}. \url{https://ipinfo.io/developers}
+  \item Shodan. \textit{Shodan API Reference and InternetDB Documentation}. \url{https://developer.shodan.io/}
+  \item Riverbank Computing. \textit{PyQt6 Class Reference Documentation}. \url{https://www.riverbankcomputing.com/static/Docs/PyQt6/}
+  \item CabbageDevelopment. \textit{qasync: asyncio Event Loop Implementation for PyQt/PySide}. \url{https://github.com/CabbageDevelopment/qasync}
+  \item KimiNewt. \textit{PyShark: Python Wrapper for TShark Packet Analysis}. \url{https://github.com/KimiNewt/pyshark}
+  \item Encode. \textit{httpx: A Next-Generation Asynchronous HTTP Client for Python}. \url{https://www.python-httpx.org/}
+  \item Tkem. \textit{cachetools: Extensible In-Memory Memoizing Collections}. \url{https://cachetools.readthedocs.io/}
+  \item Wireshark Foundation. \textit{TShark Network Protocol Analyzer Manual}. \url{https://www.wireshark.org/docs/man-pages/tshark.html}
+  \item Rekhter, Y., Moskowitz, B., Karrenberg, D., de Groot, G. J., \& Lear, E. \textit{RFC 1918: Address Allocation for Private Internets}. Internet Engineering Task Force (IETF), 1996.
+  \item Wireshark Wiki. \textit{Libpcap File Format Specification}. \url{https://wiki.wireshark.org/Development/LibpcapFileFormat}
+  \item Microsoft Corporation. \textit{Windows Presentation Foundation (.NET 8 WPF) Documentation}. \url{https://learn.microsoft.com/en-us/dotnet/desktop/wpf/}
+  \item psutil contributors. \textit{psutil: Cross-platform Process and System Monitoring in Python}. \url{https://psutil.readthedocs.io/}
+\end{enumerate}
+
+\end{document}
