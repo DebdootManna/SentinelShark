@@ -1,4 +1,5 @@
 import json
+import queue
 import random
 import subprocess
 import time
@@ -9,6 +10,9 @@ from app.config import config
 from app.core.parser import PacketDissector, format_hex_dump, calculate_payload_hash
 from app.core.telemetry_enricher import telemetry_enricher
 from app.core.secops_engine import evaluate_heuristics, compute_severity
+
+# Hard-capped thread-safe drop-tail packet queue (max 300 items)
+packet_queue: queue.Queue = queue.Queue(maxsize=300)
 
 
 def get_available_interfaces() -> List[str]:
@@ -64,10 +68,32 @@ def sanitize_bpf_filter(raw_bpf: str) -> str:
     return raw_bpf.strip()
 
 
+def make_packet_summary_tuple(pkt_dict: dict) -> tuple:
+    """Build lightweight primitive 11-tuple from packet dict."""
+    no_val = str(pkt_dict.get("no", 1))
+    time_val = str(pkt_dict.get("time", ""))
+    pid_val = str(pkt_dict.get("pid", "—"))
+    proc_val = str(pkt_dict.get("process_name", "System / External"))
+    src_val = str(pkt_dict.get("src", ""))
+    dst_val = str(pkt_dict.get("dst", ""))
+    proto_val = str(pkt_dict.get("protocol", ""))
+    len_val = str(pkt_dict.get("length", 0))
+    mitre_tags = pkt_dict.get("mitre_tags", [])
+    mitre_val = ", ".join(mitre_tags) if mitre_tags else "—"
+    sev_val = str(pkt_dict.get("severity", "safe")).upper()
+    info_val = str(pkt_dict.get("info", ""))
+
+    return (
+        no_val, time_val, pid_val, proc_val,
+        src_val, dst_val, proto_val, len_val,
+        mitre_val, sev_val, info_val
+    )
+
+
 def enrich_packet_with_telemetry(pkt_dict: dict) -> dict:
     """
-    Enrich a parsed packet dict with endpoint telemetry (process correlation)
-    and MITRE ATT&CK heuristic tags for EDR functionality.
+    Enrich a parsed packet dict with endpoint telemetry using instant O(1) dictionary lookups.
+    Never blocks or calls subprocesses.
     """
     src_ip = str(pkt_dict.get("src") or "")
     dst_ip = str(pkt_dict.get("dst") or "")
@@ -80,28 +106,23 @@ def enrich_packet_with_telemetry(pkt_dict: dict) -> dict:
     except (ValueError, TypeError):
         dst_port = 0
 
-    # Bidirectional socket correlation (handles outbound and inbound)
-    process_data = telemetry_enricher.correlate_packet(src_ip, src_port, dst_ip, dst_port)
-
-    # Fallback display values if unresolved
-    raw_pid = process_data.get("pid")
-    pid_val = str(raw_pid) if raw_pid not in ("", None) else "—"
-    proc_name = process_data.get("name") or "System / Kernel"
+    # Fast O(1) dictionary lookup (never blocks, never calls psutil/lsof)
+    pid_val, proc_name = telemetry_enricher.correlate_fast(src_ip, src_port, dst_ip, dst_port)
 
     pkt_dict["pid"] = pid_val
-    pkt_dict["ppid"] = process_data.get("ppid", 0)
+    pkt_dict["ppid"] = 0
     pkt_dict["process_name"] = proc_name
-    pkt_dict["cmdline"] = process_data.get("cmdline", "")
-    pkt_dict["username"] = process_data.get("username", "")
-    pkt_dict["exe_path"] = process_data.get("exe_path", "")
-    pkt_dict["exe_sha256"] = process_data.get("sha256", "")
+    pkt_dict["cmdline"] = ""
+    pkt_dict["username"] = "system" if pid_val == "—" else ""
+    pkt_dict["exe_path"] = ""
+    pkt_dict["exe_sha256"] = ""
 
     # Evaluate MITRE ATT&CK heuristics
-    mitre_tags = []
+    process_data = {"name": proc_name, "pid": pid_val}
     try:
         mitre_tags = evaluate_heuristics(process_data, pkt_dict)
     except Exception:
-        pass
+        mitre_tags = []
     pkt_dict["mitre_tags"] = mitre_tags
 
     # Compute severity
@@ -141,6 +162,14 @@ class LiveCaptureThread(QThread):
         """Execute capture loop in worker thread."""
         self.is_running = True
         self._packet_count = 0
+
+        # Drain packet_queue of any stale items before starting capture
+        while not packet_queue.empty():
+            try:
+                packet_queue.get_nowait()
+            except queue.Empty:
+                break
+
         tshark_exec = config.find_tshark()
 
         # If Mock mode is forced or TShark is not installed, run Mock Generator
@@ -225,8 +254,6 @@ class LiveCaptureThread(QThread):
         json_buffer = ""
         in_object = False
         brace_count = 0
-        packet_batch = []
-        last_flush_time = time.time()
 
         try:
             while self.is_running and self._capture_proc:
@@ -262,27 +289,18 @@ class LiveCaptureThread(QThread):
                             pkt_data = json.loads(clean_json)
                             if "_source" in pkt_data:
                                 self._packet_count += 1
-                                parsed_pkt = PacketDissector.dissect_tshark_json_packet(pkt_data, self._packet_count)
+                                parsed_pkt = PacketDissector.dissect_tshark_json_packet(pkt_data, self._packet_count, lazy=True)
                                 enrich_packet_with_telemetry(parsed_pkt)
-                                packet_batch.append(parsed_pkt)
-                                self.packet_received.emit(parsed_pkt)
+                                summary_tuple = make_packet_summary_tuple(parsed_pkt)
 
-                                now = time.time()
-                                if len(packet_batch) >= 20 or (now - last_flush_time) >= 0.04:
-                                    self.packets_batch_received.emit(list(packet_batch))
-                                    packet_batch.clear()
-                                    last_flush_time = now
+                                try:
+                                    packet_queue.put_nowait(summary_tuple)
+                                except queue.Full:
+                                    # CRITICAL: Drop the packet immediately if the queue is full!
+                                    # Never block the capture loop and never let items buffer in RAM.
+                                    pass
                         except json.JSONDecodeError:
                             pass
-
-                now = time.time()
-                if packet_batch and (now - last_flush_time) >= 0.04:
-                    self.packets_batch_received.emit(list(packet_batch))
-                    packet_batch.clear()
-                    last_flush_time = now
-
-            if packet_batch:
-                self.packets_batch_received.emit(list(packet_batch))
 
         except Exception as e:
             print(f"[CaptureThread] Direct TShark streaming error: {e}")
@@ -308,26 +326,18 @@ class LiveCaptureThread(QThread):
             self._pyshark_capture = pyshark.LiveCapture(**kwargs)
             self.status_changed.emit("PyShark Fallback active. Sniffing packets...")
 
-            packet_batch = []
-            last_flush = time.time()
-
             for packet in self._pyshark_capture.sniff_continuously():
                 if not self.is_running:
                     break
                 self._packet_count += 1
-                pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count)
+                pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count, lazy=True)
                 enrich_packet_with_telemetry(pkt_data)
-                packet_batch.append(pkt_data)
-                self.packet_received.emit(pkt_data)
+                summary_tuple = make_packet_summary_tuple(pkt_data)
 
-                now = time.time()
-                if len(packet_batch) >= 10 or (now - last_flush) >= 0.05:
-                    self.packets_batch_received.emit(list(packet_batch))
-                    packet_batch.clear()
-                    last_flush = now
-
-            if packet_batch:
-                self.packets_batch_received.emit(list(packet_batch))
+                try:
+                    packet_queue.put_nowait(summary_tuple)
+                except queue.Full:
+                    pass
 
         except Exception as e:
             if self.is_running:
@@ -349,22 +359,19 @@ class LiveCaptureThread(QThread):
                 include_raw=True,
                 use_json=True
             )
-            packet_batch = []
             for packet in self._pyshark_capture:
                 if not self.is_running:
                     break
                 self._packet_count += 1
-                pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count)
+                pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count, lazy=True)
                 enrich_packet_with_telemetry(pkt_data)
-                packet_batch.append(pkt_data)
-                self.packet_received.emit(pkt_data)
+                summary_tuple = make_packet_summary_tuple(pkt_data)
 
-                if len(packet_batch) >= 25:
-                    self.packets_batch_received.emit(list(packet_batch))
-                    packet_batch.clear()
+                try:
+                    packet_queue.put_nowait(summary_tuple)
+                except queue.Full:
+                    pass
 
-            if packet_batch:
-                self.packets_batch_received.emit(list(packet_batch))
             self.status_changed.emit("Finished reading PCAP file.")
 
         except Exception as e:
@@ -405,9 +412,6 @@ class LiveCaptureThread(QThread):
             {"pid": 7711, "ppid": 3304, "name": "nc", "cmdline": "nc -lvp 9001", "username": "root", "exe_path": "/usr/bin/nc"},
         ]
 
-        packet_batch = []
-        last_flush = time.time()
-
         while self.is_running:
             self._packet_count += 1
             dst_ip, dst_desc, proto_hint = random.choice(public_destinations)
@@ -442,48 +446,6 @@ class LiveCaptureThread(QThread):
                 protocol = proto_hint
 
             raw_bytes = payload_str.encode("utf-8", errors="ignore")
-            hex_dump, ascii_str = format_hex_dump(raw_bytes)
-            hashes = calculate_payload_hash(raw_bytes)
-
-            layers_tree = [
-                {
-                    "name": f"Frame {self._packet_count}: {length} bytes on wire",
-                    "children": [
-                        f"Arrival Time: {time_str}",
-                        f"Frame Length: {length} bytes",
-                        f"Protocols in Frame: eth:ip:{protocol.lower()}"
-                    ]
-                },
-                {
-                    "name": f"Ethernet II, Src: 00:11:22:33:44:55, Dst: 66:77:88:99:aa:bb",
-                    "children": [
-                        "Destination: 66:77:88:99:aa:bb",
-                        "Source: 00:11:22:33:44:55",
-                        "Type: IPv4 (0x0800)"
-                    ]
-                },
-                {
-                    "name": f"Internet Protocol Version 4, Src: {src_ip}, Dst: {dst_ip}",
-                    "children": [
-                        "Version: 4",
-                        "Header Length: 20 bytes",
-                        "Time to Live (TTL): 64",
-                        f"Protocol: {protocol}",
-                        f"Source Address: {src_ip}",
-                        f"Destination Address: {dst_ip}"
-                    ]
-                },
-                {
-                    "name": f"{protocol} Layer, Src Port: {src_port}, Dst Port: {dst_port}",
-                    "children": [
-                        f"Source Port: {src_port}",
-                        f"Destination Port: {dst_port}",
-                        f"Payload Size: {len(raw_bytes)} bytes",
-                        f"MD5 Hash: {hashes['md5']}",
-                        f"SHA256 Hash: {hashes['sha256']}"
-                    ]
-                }
-            ]
 
             pkt_dict = {
                 "no": self._packet_count,
@@ -496,11 +458,11 @@ class LiveCaptureThread(QThread):
                 "length": length,
                 "info": info,
                 "raw_bytes": raw_bytes,
-                "hex_dump": hex_dump,
-                "ascii_str": ascii_str,
-                "payload_md5": hashes["md5"],
-                "payload_sha256": hashes["sha256"],
-                "layers_tree": layers_tree,
+                "hex_dump": None,
+                "ascii_str": None,
+                "payload_md5": None,
+                "payload_sha256": None,
+                "layers_tree": None,
                 "threat_score": 0,
                 "threat_data": None
             }
@@ -513,7 +475,7 @@ class LiveCaptureThread(QThread):
             pkt_dict["cmdline"] = mock_proc["cmdline"]
             pkt_dict["username"] = mock_proc["username"]
             pkt_dict["exe_path"] = mock_proc["exe_path"]
-            pkt_dict["exe_sha256"] = hashes["sha256"]  # reuse payload hash for demo
+            pkt_dict["exe_sha256"] = ""
 
             # Evaluate MITRE heuristics on mock data
             try:
@@ -525,14 +487,11 @@ class LiveCaptureThread(QThread):
                 pkt_dict["mitre_tags"] = []
                 pkt_dict["severity"] = "safe"
 
-            packet_batch.append(pkt_dict)
-            self.packet_received.emit(pkt_dict)
-
-            now = time.time()
-            if len(packet_batch) >= 10 or (now - last_flush) >= 0.03:
-                self.packets_batch_received.emit(list(packet_batch))
-                packet_batch.clear()
-                last_flush = now
+            summary_tuple = make_packet_summary_tuple(pkt_dict)
+            try:
+                packet_queue.put_nowait(summary_tuple)
+            except queue.Full:
+                pass
 
             time.sleep(random.uniform(0.015, 0.035))
 

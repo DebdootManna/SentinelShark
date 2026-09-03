@@ -11,33 +11,53 @@ import subprocess
 import threading
 import time
 from typing import Dict, Any, Optional
+from cachetools import TTLCache
 import psutil
 
 
 class EndpointTelemetryEnricher:
     """
     Enriches network telemetry by correlating network sockets to host processes in real time.
-    Maintains a high-frequency background socket polling daemon with bidirectional lookup maps.
+    Decoupled from ingestion: background daemon updates lookup cache once per 1.0s.
+    Packet ingestion path only performs fast O(1) dict lookups.
     """
 
     def __init__(self):
-        self._exact_map: Dict[tuple, Dict[str, Any]] = {}
-        self._endpoint_map: Dict[tuple, Dict[str, Any]] = {}
-        self._port_map: Dict[int, Dict[str, Any]] = {}
-        self._proc_meta_cache: Dict[int, tuple[Dict[str, Any], float]] = {}
+        # Strict bounded caches: max 1,000 entries with 10-second TTL to prune closed/transient sockets
+        self._socket_cache: TTLCache = TTLCache(maxsize=1000, ttl=10)
+        self._port_cache: TTLCache = TTLCache(maxsize=1000, ttl=10)
+        self._proc_meta_cache: TTLCache = TTLCache(maxsize=256, ttl=30)
         self._lock = threading.Lock()
         self._running = True
 
         # Prime the cache synchronously before spawning the background worker
         self._poll_sockets()
 
-        # Start dedicated background polling daemon (200-250ms cadence)
+        # Dedicated background polling daemon (updated ONLY once per second)
         self._daemon_thread = threading.Thread(target=self._daemon_loop, daemon=True, name="SocketCacheDaemon")
         self._daemon_thread.start()
 
+    @property
+    def _exact_map(self) -> Dict[tuple, Dict[str, Any]]:
+        """Backward-compatible snapshot of exact socket map."""
+        with self._lock:
+            return dict(self._socket_cache)
+
+    @property
+    def _endpoint_map(self) -> Dict[tuple, Dict[str, Any]]:
+        """Backward-compatible snapshot of endpoint socket map."""
+        with self._lock:
+            return dict(self._socket_cache)
+
+    @property
+    def _port_map(self) -> Dict[int, Dict[str, Any]]:
+        """Backward-compatible snapshot of port socket map."""
+        with self._lock:
+            return dict(self._port_cache)
+
     @staticmethod
     def _compute_sha256(file_path: str) -> str:
-        """Compute the SHA256 hash of a file."""
+        """Compute the SHA256 hash of a file on-demand only (never in packet capture loop)."""
         if not file_path:
             return ""
         try:
@@ -50,12 +70,10 @@ class EndpointTelemetryEnricher:
             return ""
 
     def _get_proc_meta(self, pid: int, fallback_name: str = "") -> Dict[str, Any]:
-        """Fetch and cache process metadata (cmdline, exe, sha256, username, ppid)."""
-        now = time.time()
-        if pid in self._proc_meta_cache:
-            meta, ts = self._proc_meta_cache[pid]
-            if (now - ts) < 60.0:
-                return meta
+        """Fetch and cache process metadata without blocking disk reads."""
+        with self._lock:
+            if pid in self._proc_meta_cache:
+                return dict(self._proc_meta_cache[pid])
 
         data = {
             "pid": pid,
@@ -81,9 +99,7 @@ class EndpointTelemetryEnricher:
             except (psutil.AccessDenied, psutil.NoSuchProcess):
                 pass
             try:
-                exe_path = proc.exe()
-                data["exe_path"] = exe_path
-                data["sha256"] = self._compute_sha256(exe_path)
+                data["exe_path"] = proc.exe()
             except (psutil.AccessDenied, psutil.NoSuchProcess, OSError):
                 pass
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -91,7 +107,8 @@ class EndpointTelemetryEnricher:
         except Exception:
             pass
 
-        self._proc_meta_cache[pid] = (data, now)
+        with self._lock:
+            self._proc_meta_cache[pid] = data
         return data
 
     def _poll_mac_lsof(self) -> list[dict]:
@@ -196,60 +213,76 @@ class EndpointTelemetryEnricher:
                         new_exact[(lip, lp, rip, rp)] = meta
                         new_endpoint[(rip, rp)] = meta
 
-        # Atomic dictionary swap under lock
+        # Update bounded TTLCaches under lock (max 1000 items, 10s TTL)
         with self._lock:
-            self._exact_map = new_exact
-            self._endpoint_map = new_endpoint
-            self._port_map = new_port
+            for k, v in new_endpoint.items():
+                self._socket_cache[k] = v
+            for k, v in new_exact.items():
+                self._socket_cache[k] = v
+            for k, v in new_port.items():
+                self._port_cache[k] = v
 
     def _daemon_loop(self):
-        """Continuous background thread loop executing every 200ms."""
+        """Dedicated background daemon loop executing strictly once per 1.0 second."""
         while self._running:
             try:
                 self._poll_sockets()
             except Exception:
                 pass
-            time.sleep(0.2)
+            time.sleep(1.0)
+
+    def correlate_fast(self, src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> tuple[str, str]:
+        """
+        Instant O(1) in-memory dictionary lookup without system calls or locks contention.
+        Returns (pid_str, process_name).
+        """
+        with self._lock:
+            meta = (
+                self._socket_cache.get((src_ip, src_port, dst_ip, dst_port)) or
+                self._socket_cache.get((dst_ip, dst_port, src_ip, src_port)) or
+                self._socket_cache.get((src_ip, src_port)) or
+                self._socket_cache.get((dst_ip, dst_port))
+            )
+            if not meta and src_port > 0:
+                meta = self._port_cache.get(src_port)
+            if not meta and dst_port > 0:
+                meta = self._port_cache.get(dst_port)
+
+        if meta:
+            pid = meta.get("pid")
+            pid_str = str(pid) if pid not in ("", None) else "—"
+            name = meta.get("name") or "System / External"
+            return (pid_str, name)
+
+        return ("—", "System / External")
 
     def correlate_packet(self, src_ip: str, src_port: int, dst_ip: str, dst_port: int) -> Dict[str, Any]:
         """
         Correlate bidirectional network packet telemetry to host processes.
-
-        Args:
-            src_ip: Source IP address
-            src_port: Source port number
-            dst_ip: Destination IP address
-            dst_port: Destination port number
+        Performs fast in-memory dictionary lookup.
 
         Returns:
             Dictionary containing process telemetry (pid, ppid, name, cmdline, username, exe_path, sha256).
         """
         with self._lock:
-            # 1. Exact match outbound: (src_ip, src_port, dst_ip, dst_port)
-            if (src_ip, src_port, dst_ip, dst_port) in self._exact_map:
-                return dict(self._exact_map[(src_ip, src_port, dst_ip, dst_port)])
+            meta = (
+                self._socket_cache.get((src_ip, src_port, dst_ip, dst_port)) or
+                self._socket_cache.get((dst_ip, dst_port, src_ip, src_port)) or
+                self._socket_cache.get((src_ip, src_port)) or
+                self._socket_cache.get((dst_ip, dst_port))
+            )
+            if not meta and src_port > 0:
+                meta = self._port_cache.get(src_port)
+            if not meta and dst_port > 0:
+                meta = self._port_cache.get(dst_port)
 
-            # 2. Exact match inbound: (dst_ip, dst_port, src_ip, src_port)
-            if (dst_ip, dst_port, src_ip, src_port) in self._exact_map:
-                return dict(self._exact_map[(dst_ip, dst_port, src_ip, src_port)])
+            if meta:
+                return dict(meta)
 
-            # 3. Endpoint match (local IP + port)
-            if (src_ip, src_port) in self._endpoint_map:
-                return dict(self._endpoint_map[(src_ip, src_port)])
-            if (dst_ip, dst_port) in self._endpoint_map:
-                return dict(self._endpoint_map[(dst_ip, dst_port)])
-
-            # 4. Local port match (ephemeral client port or listening server port)
-            if src_port > 0 and src_port in self._port_map:
-                return dict(self._port_map[src_port])
-            if dst_port > 0 and dst_port in self._port_map:
-                return dict(self._port_map[dst_port])
-
-        # 5. Clean fallback display when socket belongs to kernel, transit, or transient connection
         return {
             "pid": "—",
             "ppid": 0,
-            "name": "System / Kernel",
+            "name": "System / External",
             "cmdline": "",
             "username": "system",
             "exe_path": "",

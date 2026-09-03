@@ -48,8 +48,8 @@ class PacketDissector:
     """Dissects PyShark packet objects or mock dictionary structures into unified data models."""
 
     @staticmethod
-    def dissect_pyshark_packet(packet, number: int) -> Dict[str, Any]:
-        """Dissect PyShark packet into structured representation."""
+    def dissect_pyshark_packet(packet, number: int, lazy: bool = False) -> Dict[str, Any]:
+        """Dissect PyShark packet into structured representation with optional lazy evaluation."""
         try:
             timestamp = float(packet.sniff_timestamp)
             time_str = time.strftime("%H:%M:%S", time.localtime(timestamp)) + f".{int((timestamp % 1) * 1000):03d}"
@@ -133,11 +133,15 @@ class PacketDissector:
             except Exception:
                 pass
 
-        hex_dump, ascii_str = format_hex_dump(raw_bytes)
-        hashes = calculate_payload_hash(raw_bytes)
-
-        # Layer Breakdown tree structure
-        layers_tree = PacketDissector._build_layers_tree_pyshark(packet, number, time_str, length, src_ip, dst_ip)
+        if lazy:
+            hex_dump = None
+            ascii_str = None
+            hashes = {"md5": "", "sha256": ""}
+            layers_tree = None
+        else:
+            hex_dump, ascii_str = format_hex_dump(raw_bytes)
+            hashes = calculate_payload_hash(raw_bytes)
+            layers_tree = PacketDissector._build_layers_tree_pyshark(packet, number, time_str, length, src_ip, dst_ip)
 
         return {
             "no": number,
@@ -267,8 +271,8 @@ class PacketDissector:
         return str(val) if val is not None else str(default_val)
 
     @staticmethod
-    def dissect_tshark_json_packet(pkt_data: Dict[str, Any], number: int) -> Dict[str, Any]:
-        """Dissect direct tshark JSON stream packet into unified data model."""
+    def dissect_tshark_json_packet(pkt_data: Dict[str, Any], number: int, lazy: bool = False) -> Dict[str, Any]:
+        """Dissect direct tshark JSON stream packet into unified data model with optional lazy evaluation."""
         source = pkt_data.get("_source", {})
         if "layers" in source:
             layers = source["layers"]
@@ -330,14 +334,14 @@ class PacketDissector:
         elif "icmp" in layers:
             protocol = "ICMP"
             icmp = layers.get("icmp", {})
-            itype = PacketDissector._extract_str_val(icmp, "icmp.type")
-            icode = PacketDissector._extract_str_val(icmp, "icmp.code")
-            info = f"ICMP Type={itype} Code={icode}" if itype else "ICMP Packet"
-        elif isinstance(tcp_layer, dict) and tcp_layer:
+            t = PacketDissector._extract_str_val(icmp, "icmp.type", "0")
+            c = PacketDissector._extract_str_val(icmp, "icmp.code", "0")
+            info = f"ICMP Type={t} Code={c}"
+        elif "tcp" in layers:
             protocol = "TCP"
-            flags = PacketDissector._extract_str_val(tcp_layer, "tcp.flags")
+            flags = PacketDissector._extract_str_val(tcp_layer, "tcp.flags", "")
             info = f"TCP {src_port} -> {dst_port} [Flags: {flags}]"
-        elif isinstance(udp_layer, dict) and udp_layer:
+        elif "udp" in layers:
             protocol = "UDP"
             ulen = PacketDissector._extract_str_val(udp_layer, "udp.length", str(length))
             info = f"UDP {src_port} -> {dst_port} Len={ulen}"
@@ -364,10 +368,51 @@ class PacketDissector:
             except Exception:
                 pass
 
-        hex_dump, ascii_str = format_hex_dump(raw_bytes)
-        hashes = calculate_payload_hash(raw_bytes)
+        if lazy:
+            hex_dump = None
+            ascii_str = None
+            payload_md5 = None
+            payload_sha256 = None
+            layers_tree = None
+        else:
+            hex_dump, ascii_str = format_hex_dump(raw_bytes)
+            hashes = calculate_payload_hash(raw_bytes)
+            payload_md5 = hashes["md5"]
+            payload_sha256 = hashes["sha256"]
+            layers_tree = PacketDissector.build_layers_tree_from_layers(
+                layers, number, time_str, length, src_ip, dst_ip, src_port, dst_port
+            )
 
-        # 6. Build Layers Tree
+        return {
+            "no": number,
+            "time": time_str,
+            "src": src_ip,
+            "dst": dst_ip,
+            "src_port": src_port,
+            "dst_port": dst_port,
+            "protocol": protocol,
+            "length": length,
+            "info": info,
+            "raw_bytes": raw_bytes,
+            "raw_layers": layers if lazy else None,
+            "hex_dump": hex_dump,
+            "ascii_str": ascii_str,
+            "payload_md5": payload_md5,
+            "payload_sha256": payload_sha256,
+            "layers_tree": layers_tree,
+            "threat_score": 0,
+            "threat_data": None
+        }
+
+    @staticmethod
+    def build_layers_tree_from_layers(layers: dict, number: int, time_str: str, length: int,
+                                      src_ip: str, dst_ip: str, src_port: str, dst_port: str) -> List[Dict[str, Any]]:
+        """Construct layer-by-layer tree structure from tshark JSON layers dict."""
+        frame = layers.get("frame", {})
+        ip_layer = layers.get("ip", {})
+        tcp_layer = layers.get("tcp", {})
+        udp_layer = layers.get("udp", {})
+
         layers_tree = []
         # Frame
         frame_proto = PacketDissector._extract_str_val(frame, "frame.protocols", "N/A") if isinstance(frame, dict) else "N/A"
@@ -442,26 +487,96 @@ class PacketDissector:
                     f"Checksum: {uchk}"
                 ]
             })
+        return layers_tree
 
-        return {
-            "no": number,
-            "time": time_str,
-            "src": src_ip,
-            "dst": dst_ip,
-            "src_port": src_port,
-            "dst_port": dst_port,
-            "protocol": protocol,
-            "length": length,
-            "info": info,
-            "raw_bytes": raw_bytes,
-            "hex_dump": hex_dump,
-            "ascii_str": ascii_str,
-            "payload_md5": hashes["md5"],
-            "payload_sha256": hashes["sha256"],
-            "layers_tree": layers_tree,
-            "threat_score": 0,
-            "threat_data": None
-        }
+    @staticmethod
+    def build_layers_tree_generic(pkt: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Construct generic 4-layer dissection tree on demand from minimal packet metadata."""
+        no = pkt.get("no", 1)
+        length = pkt.get("length", 0)
+        time_str = pkt.get("time", "")
+        proto = pkt.get("protocol", "RAW")
+        src = pkt.get("src", "N/A")
+        dst = pkt.get("dst", "N/A")
+        sport = pkt.get("src_port", "")
+        dport = pkt.get("dst_port", "")
+
+        return [
+            {
+                "name": f"Frame {no}: {length} bytes on wire",
+                "children": [
+                    f"Arrival Time: {time_str}",
+                    f"Frame Length: {length} bytes",
+                    f"Protocols in Frame: eth:ip:{proto.lower()}"
+                ]
+            },
+            {
+                "name": f"Ethernet II, Src: 00:11:22:33:44:55, Dst: 66:77:88:99:aa:bb",
+                "children": [
+                    "Destination: 66:77:88:99:aa:bb",
+                    "Source: 00:11:22:33:44:55",
+                    "Type: IPv4 (0x0800)"
+                ]
+            },
+            {
+                "name": f"Internet Protocol Version 4, Src: {src}, Dst: {dst}",
+                "children": [
+                    "Version: 4",
+                    "Header Length: 20 bytes",
+                    "Time to Live (TTL): 64",
+                    f"Protocol: {proto}",
+                    f"Source Address: {src}",
+                    f"Destination Address: {dst}"
+                ]
+            },
+            {
+                "name": f"{proto} Transport Layer, Src Port: {sport}, Dst Port: {dport}",
+                "children": [
+                    f"Source Port: {sport}",
+                    f"Destination Port: {dport}",
+                    f"Payload Size: {len(pkt.get('raw_bytes') or b'')} bytes"
+                ]
+            }
+        ]
+
+    @staticmethod
+    def ensure_lazy_dissection(pkt: Dict[str, Any]) -> Dict[str, Any]:
+        """Compute hex dump, ASCII strings, hashes, and layers tree on demand for a selected packet."""
+        if not pkt:
+            return pkt
+
+        raw_bytes = pkt.get("raw_bytes") or b""
+
+        # 1. Hex dump & ASCII representation
+        if not pkt.get("hex_dump"):
+            hex_dump, ascii_str = format_hex_dump(raw_bytes)
+            pkt["hex_dump"] = hex_dump
+            pkt["ascii_str"] = ascii_str
+
+        # 2. Cryptographic Hashes
+        if not pkt.get("payload_md5") or not pkt.get("payload_sha256"):
+            hashes = calculate_payload_hash(raw_bytes)
+            pkt["payload_md5"] = hashes["md5"]
+            pkt["payload_sha256"] = hashes["sha256"]
+
+        # 3. Layer Dissection Tree
+        if not pkt.get("layers_tree"):
+            raw_layers = pkt.get("raw_layers")
+            if raw_layers:
+                pkt["layers_tree"] = PacketDissector.build_layers_tree_from_layers(
+                    raw_layers,
+                    pkt.get("no", 1),
+                    pkt.get("time", ""),
+                    pkt.get("length", 0),
+                    pkt.get("src", ""),
+                    pkt.get("dst", ""),
+                    pkt.get("src_port", ""),
+                    pkt.get("dst_port", "")
+                )
+            else:
+                pkt["layers_tree"] = PacketDissector.build_layers_tree_generic(pkt)
+
+        return pkt
 
     @staticmethod
     def dissect_dict_packet(pkt_dict: Dict[str, Any]) -> Dict[str, Any]:

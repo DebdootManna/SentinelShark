@@ -1,4 +1,5 @@
 import os
+import queue
 import time
 from typing import Optional
 import psutil
@@ -13,7 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.config import config, CONFIG_PATH
-from app.core.capture import LiveCaptureThread, get_available_interfaces
+from app.core.capture import LiveCaptureThread, get_available_interfaces, packet_queue
 from app.core.response_engine import ResponseWorkerThread
 from app.services.queuemanager import queue_manager
 from app.services.threatintel import is_public_ip
@@ -285,6 +286,10 @@ class MainWindow(QMainWindow):
         self.analyze_pcap_threats: bool = True
         self._active_workers: list = []
 
+        # Pull-based rate-limited GUI render timer (ticks every 40ms = 25 FPS)
+        self.render_timer = QTimer(self)
+        self.render_timer.timeout.connect(self.drain_packet_queue)
+
         self.init_ui()
         self.wire_signals()
         QTimer.singleShot(200, self.prompt_interface_selection)
@@ -502,19 +507,26 @@ class MainWindow(QMainWindow):
         else:
             self.start_capture()
 
+    def drain_packet_queue(self):
+        """
+        Pull-based rate-limited packet drainer running at 25 FPS (40ms ticks).
+        Pulls at most 50 items per frame (max 1250 rows/sec) preventing event loop freezes.
+        """
+        batch = []
+        while not packet_queue.empty() and len(batch) < 50:
+            try:
+                batch.append(packet_queue.get_nowait())
+            except queue.Empty:
+                break
+
+        if batch:
+            self.packet_table.add_packets_batch(batch)
+            self.stats_panel.update_packets_batch(batch)
+
     @pyqtSlot(dict)
     def on_packet_captured(self, pkt: dict):
-        """Handle individual packet emitted by worker thread."""
-        self.packet_table.add_packet(pkt)
-        self.stats_panel.update_packet_stats(pkt)
-
-        if self.analyze_pcap_threats:
-            dst_ip = pkt.get("dst", "")
-            if dst_ip:
-                queue_manager.enqueue_ip(dst_ip)
-            src_ip = pkt.get("src", "")
-            if src_ip:
-                queue_manager.enqueue_ip(src_ip)
+        """Handle individual packet (backward compatibility helper)."""
+        self.on_packets_batch_captured([pkt])
 
     @pyqtSlot(list)
     def on_packets_batch_captured(self, pkt_list: list):
@@ -665,8 +677,6 @@ class MainWindow(QMainWindow):
             pcap_file=pcap_file
         )
 
-        self.capture_thread.packet_received.connect(self.on_packet_captured)
-        self.capture_thread.packets_batch_received.connect(self.on_packets_batch_captured)
         self.capture_thread.status_changed.connect(self.update_capture_status)
         self.capture_thread.error_occurred.connect(self.show_capture_error)
         self.capture_thread.permission_error_occurred.connect(self.on_permission_error)
@@ -675,6 +685,9 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(True)
         self.iface_combo.setEnabled(False)
         self.bpf_edit.setEnabled(False)
+
+        # Start pull-based rate-limited QTimer drain loop (ticks every 40ms = 25 FPS)
+        self.render_timer.start(40)
 
         self.capture_thread.start()
 
@@ -708,6 +721,9 @@ class MainWindow(QMainWindow):
 
     def stop_capture(self):
         """Stop running capture thread."""
+        self.render_timer.stop()
+        self.drain_packet_queue()
+
         if self.capture_thread and self.capture_thread.isRunning():
             self.capture_thread.stop()
 

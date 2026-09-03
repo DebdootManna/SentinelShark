@@ -491,25 +491,36 @@ class StatsPanel(QWidget):
 
         for pkt in pkt_list:
             self.total_packets += 1
-            pkt_bytes = pkt.get("length", 0) or 0
+            if isinstance(pkt, tuple):
+                # (no, time, pid, process, src, dst, proto, length, mitre, sev, info)
+                pkt_bytes = int(pkt[7]) if str(pkt[7]).isdigit() else 0
+                raw_proto = str(pkt[6] or "OTHER").upper()
+                pname = str(pkt[3]) or "System / External"
+                mitre_str = str(pkt[8])
+                mitre_tags = [t.strip() for t in mitre_str.split(",") if t.strip() and t.strip() != "—"]
+                sev = str(pkt[9]).lower()
+            else:
+                pkt_bytes = pkt.get("length", 0) or 0
+                raw_proto = (pkt.get("protocol") or "OTHER").upper()
+                pname = pkt.get("process_name") or "System / External"
+                mitre_tags = pkt.get("mitre_tags", [])
+                sev = str(pkt.get("severity", "safe")).lower()
+
             self.total_bytes += pkt_bytes
 
             # Protocol counts
-            raw_proto = (pkt.get("protocol") or "OTHER").upper()
             proto = raw_proto if raw_proto in TRACKED_PROTOCOLS else "OTHER"
             self.protocols[proto] = self.protocols.get(proto, 0) + 1
 
             # Process telemetry counts
-            pname = pkt.get("process_name") or "System / Kernel"
             self.processes[pname] += 1
 
             # MITRE ATT&CK technique counts
-            for tag in pkt.get("mitre_tags", []):
+            for tag in mitre_tags:
                 if tag:
                     self.mitre_techniques[tag] += 1
 
             # Severity counts
-            sev = pkt.get("severity", "safe")
             if sev in ("critical", "high"):
                 self.critical_count += 1
             else:
