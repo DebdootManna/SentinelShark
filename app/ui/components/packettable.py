@@ -11,12 +11,34 @@ from app.core.secops_engine import LOLBIN_SET, compute_severity
 from app.core.parser import PacketDissector
 
 
-# Figma EDR severity color map
+# Subtle background tints for dark mode (alpha blended or deep shades)
+COLOR_CRITICAL_BG = QBrush(QColor(70, 20, 25, 120))    # Deep Crimson
+COLOR_MEDIUM_BG   = QBrush(QColor(75, 55, 15, 110))    # Deep Amber/Brown
+COLOR_SAFE_BG     = QBrush(QColor(15, 45, 25, 90))     # Deep Forest Green
+
+# Foreground text colors for the SEVERITY column badge
+COLOR_CRITICAL_FG = QColor("#FF6B6B")
+COLOR_MEDIUM_FG   = QColor("#FFD166")
+COLOR_SAFE_FG     = QColor("#06D6A0")
+COLOR_DEFAULT_FG  = QColor("#E0E6ED")
+
+# Static foreground accents for EDR telemetry columns
+COLOR_ACCENT_FG   = QColor("#58A6FF")
+COLOR_DIMMER_FG   = QColor("#484F58")
+COLOR_MUTED_FG    = QColor("#8B949E")
+COLOR_DANGER_FG   = QColor("#F85149")
+
+# Pre-allocated static fonts
+FONT_BOLD = QFont()
+FONT_BOLD.setBold(True)
+FONT_NORMAL = QFont()
+
+# Figma EDR severity color map (retained for backward compatibility)
 SEVERITY_COLORS = {
-    "critical": {"bg": QColor(61, 26, 26, 200), "fg": QColor(248, 81, 73)},
-    "high":     {"bg": QColor(45, 31, 26, 180), "fg": QColor(255, 123, 114)},
-    "medium":   {"bg": QColor(61, 46, 10, 160), "fg": QColor(210, 153, 34)},
-    "safe":     {"bg": QColor(18, 42, 25, 180), "fg": QColor(46, 160, 67)},
+    "critical": {"bg": COLOR_CRITICAL_BG, "fg": COLOR_CRITICAL_FG},
+    "high":     {"bg": COLOR_CRITICAL_BG, "fg": COLOR_CRITICAL_FG},
+    "medium":   {"bg": COLOR_MEDIUM_BG,   "fg": COLOR_MEDIUM_FG},
+    "safe":     {"bg": COLOR_SAFE_BG,     "fg": COLOR_SAFE_FG},
 }
 
 
@@ -53,13 +75,19 @@ class _ItemProxy:
         return self._model.data(self._index, Qt.ItemDataRole.TextAlignmentRole)
 
     def foreground(self):
-        return self._model.data(self._index, Qt.ItemDataRole.ForegroundRole)
+        val = self._model.data(self._index, Qt.ItemDataRole.ForegroundRole)
+        if isinstance(val, QColor):
+            return QBrush(val)
+        return val
 
     def background(self):
-        return self._model.data(self._index, Qt.ItemDataRole.BackgroundRole)
+        val = self._model.data(self._index, Qt.ItemDataRole.BackgroundRole)
+        if isinstance(val, QColor):
+            return QBrush(val)
+        return val
 
     def font(self):
-        return self._model.data(self._index, Qt.ItemDataRole.FontRole) or QFont()
+        return self._model.data(self._index, Qt.ItemDataRole.FontRole) or FONT_NORMAL
 
 
 class PacketTableModel(QAbstractTableModel):
@@ -106,8 +134,7 @@ class PacketTableModel(QAbstractTableModel):
 
         row_tuple = self._rows[row]
         val = row_tuple[col]
-        severity = str(row_tuple[9]).lower()
-        sev_colors = SEVERITY_COLORS.get(severity, SEVERITY_COLORS["safe"])
+        severity = str(row_tuple[9]).upper()
 
         if role == Qt.ItemDataRole.DisplayRole:
             return str(val)
@@ -120,37 +147,45 @@ class PacketTableModel(QAbstractTableModel):
             else:
                 return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
+        elif role == Qt.ItemDataRole.BackgroundRole:
+            if severity in ("CRITICAL", "HIGH"):
+                return COLOR_CRITICAL_BG
+            elif severity == "MEDIUM":
+                return COLOR_MEDIUM_BG
+            elif severity in ("SAFE", "LOW"):
+                return COLOR_SAFE_BG
+            return None
+
         elif role == Qt.ItemDataRole.ForegroundRole:
-            if col == 2:  # PID
-                return QBrush(QColor(88, 166, 255)) if str(val) not in ("—", "") else QBrush(QColor(72, 79, 88))
+            if col == 9:  # SEVERITY column
+                if severity in ("CRITICAL", "HIGH"):
+                    return COLOR_CRITICAL_FG
+                elif severity == "MEDIUM":
+                    return COLOR_MEDIUM_FG
+                elif severity in ("SAFE", "LOW"):
+                    return COLOR_SAFE_FG
+                return COLOR_DEFAULT_FG
+            elif col == 2:  # PID
+                return COLOR_ACCENT_FG if str(val) not in ("—", "") else COLOR_DIMMER_FG
             elif col == 3:  # Process
                 pname = str(val).lower()
                 if any(lol in pname for lol in LOLBIN_SET):
-                    return QBrush(QColor(248, 81, 73))
+                    return COLOR_DANGER_FG
                 elif str(val) in ("System / Kernel", "System / External"):
-                    return QBrush(QColor(139, 148, 158))
+                    return COLOR_MUTED_FG
                 else:
-                    return QBrush(QColor(230, 237, 243))
+                    return COLOR_DEFAULT_FG
             elif col == 6:  # Protocol
-                return QBrush(QColor(88, 166, 255))
+                return COLOR_ACCENT_FG
             elif col == 8:  # MITRE
-                return QBrush(QColor(88, 166, 255)) if str(val) not in ("—", "") else QBrush(QColor(72, 79, 88))
-            elif col == 9:  # Severity
-                return QBrush(sev_colors["fg"])
+                return COLOR_ACCENT_FG if str(val) not in ("—", "") else COLOR_DIMMER_FG
             else:
-                return QBrush(QColor(230, 237, 243))
-
-        elif role == Qt.ItemDataRole.BackgroundRole:
-            if severity in ("critical", "high", "medium"):
-                return QBrush(sev_colors["bg"])
-            return None
+                return COLOR_DEFAULT_FG
 
         elif role == Qt.ItemDataRole.FontRole:
-            font = QFont()
-            if col == 9 or (col == 3 and any(lol in str(val).lower() for lol in LOLBIN_SET)) or severity in ("critical", "high"):
-                font.setBold(True)
-                return font
-            return font
+            if col == 9 or (col == 3 and any(lol in str(val).lower() for lol in LOLBIN_SET)) or severity in ("CRITICAL", "HIGH"):
+                return FONT_BOLD
+            return FONT_NORMAL
 
         return None
 
