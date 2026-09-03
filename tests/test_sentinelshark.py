@@ -287,20 +287,96 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertEqual(len(dissected["layers_tree"]), 4)
 
     def test_packet_table_batching(self):
-        """Test PacketTable batched insertion."""
+        """Test PacketTable batched insertion with EDR columns."""
         from PyQt6.QtWidgets import QApplication
         from app.ui.components.packettable import PacketTable
 
         app = QApplication.instance() or QApplication([])
         table = PacketTable()
         batch = [
-            {"no": 1, "src": "10.0.0.1", "dst": "8.8.8.8", "protocol": "DNS", "info": "DNS Query"},
-            {"no": 2, "src": "10.0.0.1", "dst": "1.1.1.1", "protocol": "HTTPS", "info": "TLS Client Hello"}
+            {
+                "no": 1, "src": "10.0.0.1", "dst": "8.8.8.8", "protocol": "DNS", "info": "DNS Query",
+                "pid": 1234, "process_name": "curl", "mitre_tags": ["T1105"], "severity": "high"
+            },
+            {
+                "no": 2, "src": "10.0.0.1", "dst": "1.1.1.1", "protocol": "HTTPS", "info": "TLS Client Hello",
+                "pid": 5678, "process_name": "python3", "mitre_tags": [], "severity": "safe"
+            }
         ]
         table.add_packets_batch(batch)
         self.assertEqual(table.rowCount(), 2)
-        self.assertEqual(table.item(0, 2).text(), "10.0.0.1")
-        self.assertEqual(table.item(1, 3).text(), "1.1.1.1")
+        # Check new EDR columns: 2: PID, 3: Process, 4: Source, 5: Destination, 8: MITRE, 9: Severity
+        self.assertEqual(table.item(0, 2).text(), "1234")
+        self.assertEqual(table.item(0, 3).text(), "curl")
+        self.assertEqual(table.item(0, 4).text(), "10.0.0.1")
+        self.assertEqual(table.item(1, 5).text(), "1.1.1.1")
+        self.assertEqual(table.item(0, 8).text(), "T1105")
+        self.assertEqual(table.item(0, 9).text(), "HIGH")
+
+    def test_secops_engine(self):
+        """Test UDM normalization, MITRE heuristics, and severity scoring."""
+        from app.core.secops_engine import evaluate_heuristics, compute_severity, normalize_to_udm
+
+        proc = {"name": "curl", "pid": 4821, "cmdline": "curl http://185.220.101.5", "exe_path": "/usr/bin/curl", "sha256": "abc"}
+        pkt = {"src": "192.168.1.100", "dst": "185.220.101.5", "dst_port": "80", "protocol": "HTTP", "time": "12:00:00", "info": "GET /"}
+
+        # 1. MITRE Heuristics
+        tags = evaluate_heuristics(proc, pkt)
+        self.assertIn("T1105", tags)
+        self.assertIn("T1071", tags)
+
+        # 2. Severity Computation
+        threat = {"abuse_score": 90, "vt_malicious": 6}
+        sev = compute_severity(threat, tags, proc)
+        self.assertEqual(sev, "critical")
+
+        # 3. UDM Normalization
+        udm = normalize_to_udm(pkt, proc, threat)
+        self.assertEqual(udm["metadata"]["event_type"], "NETWORK_CONNECTION")
+        self.assertEqual(udm["metadata"]["product_name"], "SentinelShark EDR")
+        self.assertEqual(udm["principal"]["process"]["pid"], 4821)
+        self.assertEqual(udm["target"]["ip"], "185.220.101.5")
+        self.assertEqual(udm["target"]["port"], 80)
+        self.assertEqual(udm["security_result"]["severity"], "CRITICAL")
+
+    def test_response_engine_guards(self):
+        """Test PID protection guards in the active response engine."""
+        import os
+        from app.core.response_engine import kill_process, block_remote_ip, quarantine_file
+
+        # PID 0, PID 1, and own PID must be protected
+        ok, msg = kill_process(0)
+        self.assertFalse(ok)
+        self.assertIn("protected", msg.lower())
+
+        ok, msg = kill_process(1)
+        self.assertFalse(ok)
+        self.assertIn("protected", msg.lower())
+
+        ok, msg = kill_process(os.getpid())
+        self.assertFalse(ok)
+        self.assertIn("protected", msg.lower())
+
+        # Invalid IP format
+        ok, msg = block_remote_ip("999.999.999.999")
+        self.assertFalse(ok)
+        self.assertIn("invalid", msg.lower())
+
+        # Non-existent file quarantine
+        ok, msg = quarantine_file("/tmp/definitely_not_a_real_file_12345.bin")
+        self.assertFalse(ok)
+        self.assertIn("not found", msg.lower())
+
+    def test_telemetry_enricher_cache(self):
+        """Test EndpointTelemetryEnricher socket cache."""
+        from app.core.telemetry_enricher import telemetry_enricher
+
+        # Calling correlate_socket on unmapped socket returns dict
+        res = telemetry_enricher.correlate_socket(59999, "8.8.8.8", 53)
+        self.assertIsInstance(res, dict)
+        # Should be cached
+        res_cached = telemetry_enricher.correlate_socket(59999, "8.8.8.8", 53)
+        self.assertEqual(res, res_cached)
 
 
 if __name__ == "__main__":

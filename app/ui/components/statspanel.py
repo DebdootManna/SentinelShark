@@ -179,18 +179,20 @@ class StatsPanel(QWidget):
         self.suspicious_count = 0
         self.critical_count = 0
         self.protocols: Dict[str, int] = {}
+        self.processes: Dict[str, int] = {}
+        self.mitre_techniques: Dict[str, int] = {}
         self.selected_pkt: Optional[Dict[str, Any]] = None
         self.proto_row_widgets: Dict[str, dict] = {}
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.init_ui()
-        self.setMinimumSize(320, 650)
+        self.setMinimumSize(300, 650)
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(320, 650)
+        return QSize(300, 650)
 
     def sizeHint(self) -> QSize:
-        return QSize(340, 680)
+        return QSize(320, 680)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -202,10 +204,10 @@ class StatsPanel(QWidget):
         grid = QGridLayout()
         grid.setSpacing(10)
 
-        self.card_packets = StatCard("TOTAL PACKETS", "0", "#22D3EE")
-        self.card_bytes = StatCard("DATA TRAFFIC", "0.0 KB", "#2DD4BF")
-        self.card_safe = StatCard("SAFE PACKETS", "0", "#4ADE80")
-        self.card_threats = StatCard("THREATS DETECTED", "0", "#EF4444")
+        self.card_packets = StatCard("TOTAL EVENTS", "0", "#58A6FF")
+        self.card_bytes = StatCard("DATA TRAFFIC", "0.0 KB", "#3FB950")
+        self.card_safe = StatCard("SAFE EVENTS", "0", "#2EA043")
+        self.card_threats = StatCard("THREATS DETECTED", "0", "#F85149")
 
         grid.addWidget(self.card_packets, 0, 0)
         grid.addWidget(self.card_bytes, 0, 1)
@@ -214,7 +216,25 @@ class StatsPanel(QWidget):
 
         layout.addLayout(grid)
 
-        # 2. Protocol Breakdown Panel
+        # 2. MITRE ATT&CK Coverage Panel
+        self.mitre_card = CollapsibleCard("MITRE ATT&CK COVERAGE", expanded_min_height=110)
+        self.mitre_layout = self.mitre_card.content_layout
+        self.mitre_layout.setSpacing(4)
+        self.mitre_empty_lbl = QLabel("No techniques tagged yet")
+        self.mitre_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
+        self.mitre_layout.addWidget(self.mitre_empty_lbl)
+        layout.addWidget(self.mitre_card)
+
+        # 3. Top Processes Panel
+        self.proc_card = CollapsibleCard("TOP PROCESSES", expanded_min_height=110)
+        self.proc_layout = self.proc_card.content_layout
+        self.proc_layout.setSpacing(4)
+        self.proc_empty_lbl = QLabel("No process telemetry recorded")
+        self.proc_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
+        self.proc_layout.addWidget(self.proc_empty_lbl)
+        layout.addWidget(self.proc_card)
+
+        # 4. Protocol Breakdown Panel
         self.proto_card = CollapsibleCard("PROTOCOL BREAKDOWN", expanded_min_height=170)
         self.proto_layout = self.proto_card.content_layout
         self.proto_layout.setSpacing(8)
@@ -379,6 +399,16 @@ class StatsPanel(QWidget):
         proto = raw_proto if raw_proto in TRACKED_PROTOCOLS else "OTHER"
         self.protocols[proto] = self.protocols.get(proto, 0) + 1
 
+        # Process telemetry counts
+        pname = pkt.get("process_name", "")
+        if pname:
+            self.processes[pname] = self.processes.get(pname, 0) + 1
+
+        # MITRE ATT&CK technique counts
+        for tag in pkt.get("mitre_tags", []):
+            if tag:
+                self.mitre_techniques[tag] = self.mitre_techniques.get(tag, 0) + 1
+
         # Update metric cards
         self.card_packets.set_value(f"{self.total_packets:,}")
         
@@ -389,6 +419,21 @@ class StatsPanel(QWidget):
         self.card_bytes.set_value(bytes_str)
 
         self._refresh_protocol_bars()
+        self._refresh_edr_sections()
+
+    def _refresh_edr_sections(self):
+        """Update MITRE and Process cards dynamically."""
+        if self.mitre_techniques:
+            top_mitre = sorted(self.mitre_techniques.items(), key=lambda x: x[1], reverse=True)[:4]
+            lines = [f"• {tag}: {cnt} event(s)" for tag, cnt in top_mitre]
+            self.mitre_empty_lbl.setText("\n".join(lines))
+            self.mitre_empty_lbl.setStyleSheet("color: #58A6FF; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+
+        if self.processes:
+            top_procs = sorted(self.processes.items(), key=lambda x: x[1], reverse=True)[:4]
+            lines = [f"• {p}: {cnt} msg(s)" for p, cnt in top_procs]
+            self.proc_empty_lbl.setText("\n".join(lines))
+            self.proc_empty_lbl.setStyleSheet("color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
 
     def _refresh_protocol_bars(self):
         """Render top protocol distribution bars matching Redesigned UI smoothly without layout recreation."""
@@ -492,11 +537,17 @@ class StatsPanel(QWidget):
         self.suspicious_count = 0
         self.critical_count = 0
         self.protocols.clear()
+        self.processes.clear()
+        self.mitre_techniques.clear()
 
         self.card_packets.set_value("0")
         self.card_bytes.set_value("0.0 KB")
         self.card_safe.set_value("0")
         self.card_threats.set_value("0")
+        self.mitre_empty_lbl.setText("No techniques tagged yet")
+        self.mitre_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
+        self.proc_empty_lbl.setText("No process telemetry recorded")
+        self.proc_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
         self._refresh_protocol_bars()
         self.update_queue_status(0, 0)
         self.set_selected_packet(None)

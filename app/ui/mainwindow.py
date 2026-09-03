@@ -9,17 +9,19 @@ from PyQt6.QtWidgets import (
     QComboBox, QLineEdit, QPushButton, QLabel, QFileDialog, QMessageBox,
     QDialog, QFormLayout, QDialogButtonBox, QStatusBar, QCheckBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QScrollArea, QFrame
+    QScrollArea, QFrame, QTabWidget
 )
 
 from app.config import config, CONFIG_PATH
 from app.core.capture import LiveCaptureThread, get_available_interfaces
+from app.core.response_engine import ResponseWorkerThread
 from app.services.queuemanager import queue_manager
 from app.services.threatintel import is_public_ip
 from app.core.cache import cache
 from app.ui.styles import DARK_THEME_QSS
 from app.ui.components.packettable import PacketTable
 from app.ui.components.packetdetail import PacketDetailView
+from app.ui.components.detectionpanel import DetectionDetailPanel
 from app.ui.components.hexview import HexView
 from app.ui.components.statspanel import StatsPanel
 from app.ui.components.sparkline import SparklineWidget
@@ -271,16 +273,17 @@ class APISettingsDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    """Main Application Window for SentinelShark NIDS."""
+    """Main Application Window for SentinelShark EDR & SecOps Workstation."""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SentinelShark - Network Intrusion Detection & Analysis System")
-        self.resize(1400, 900)
+        self.setWindowTitle("SentinelShark EDR — Chronicle SecOps Workstation")
+        self.resize(1500, 950)
         self.setStyleSheet(DARK_THEME_QSS)
 
         self.capture_thread: Optional[LiveCaptureThread] = None
         self.analyze_pcap_threats: bool = True
+        self._active_workers: list = []
 
         self.init_ui()
         self.wire_signals()
@@ -378,64 +381,81 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(6, 6, 6, 6)
 
-        # Vertical Splitter (Top: Table + Stats, Bottom: Inspector + Hex)
+        # Vertical Splitter (Top: Live Telemetry Table, Bottom: 3-Panel EDR Workstation)
         self.v_splitter = QSplitter(Qt.Orientation.Vertical)
         self.v_splitter.setHandleWidth(8)
         self.v_splitter.setChildrenCollapsible(False)
 
-        # Top Horizontal Splitter (Packet Table + Stats Panel)
-        self.top_h_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.top_h_splitter.setHandleWidth(6)
-        self.top_h_splitter.setChildrenCollapsible(False)
-
+        # Top Pane: Full-width live telemetry packet table with EDR columns
         self.packet_table = PacketTable()
-        self.stats_panel = StatsPanel()
+        self.packet_table.setMinimumHeight(120)
 
-        # Wrap StatsPanel in a QScrollArea so it can shrink/scroll cleanly without squishing fonts
+        # Bottom Horizontal Splitter: 3-Column EDR Workstation
+        self.bot_h_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.bot_h_splitter.setHandleWidth(6)
+        self.bot_h_splitter.setChildrenCollapsible(False)
+
+        # Column 1: Packet Inspection (Threat intel, host & process forensics, layers)
+        self.packet_detail = PacketDetailView()
+        self.packet_detail.setMinimumWidth(320)
+
+        # Column 2: Detection Detail (Alert banner, UDM event JSON, and IR action bar)
+        self.detection_panel = DetectionDetailPanel()
+        self.detection_panel.setMinimumWidth(360)
+
+        # Column 3: Analytics Sidebar & Hex Inspector Tabs
+        self.stats_panel = StatsPanel()
         self.stats_scroll = QScrollArea()
         self.stats_scroll.setWidgetResizable(True)
         self.stats_scroll.setWidget(self.stats_panel)
         self.stats_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.stats_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.stats_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.stats_scroll.setMinimumWidth(300)
         self.stats_scroll.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
 
-        # Allow panes to shrink comfortably
-        self.packet_table.setMinimumHeight(80)
-        self.top_h_splitter.setMinimumHeight(100)
-
-        self.top_h_splitter.addWidget(self.packet_table)
-        self.top_h_splitter.addWidget(self.stats_scroll)
-        self.top_h_splitter.setCollapsible(1, False)
-        self.top_h_splitter.setSizes([950, 330])
-        self.top_h_splitter.setStretchFactor(0, 3)
-        self.top_h_splitter.setStretchFactor(1, 1)
-
-        # Bottom Horizontal Splitter (Detail Tree + Hex View)
-        self.bot_h_splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.bot_h_splitter.setHandleWidth(6)
-        self.bot_h_splitter.setChildrenCollapsible(False)
-
-        self.packet_detail = PacketDetailView()
         self.hex_view = HexView()
 
-        self.packet_detail.setMinimumHeight(80)
-        self.hex_view.setMinimumHeight(80)
-        self.bot_h_splitter.setMinimumHeight(100)
+        self.right_tabs = QTabWidget()
+        self.right_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #30363D;
+                background-color: #161B22;
+            }
+            QTabBar::tab {
+                background-color: #0D1117;
+                color: #8B949E;
+                padding: 6px 14px;
+                border: 1px solid #30363D;
+                border-bottom: none;
+                font-size: 11px;
+                font-weight: 600;
+                font-family: 'JetBrains Mono', monospace;
+            }
+            QTabBar::tab:selected {
+                background-color: #161B22;
+                color: #58A6FF;
+                border-bottom: 2px solid #58A6FF;
+            }
+        """)
+        self.right_tabs.addTab(self.stats_scroll, "Analytics")
+        self.right_tabs.addTab(self.hex_view, "Raw Hex")
+        self.right_tabs.setMinimumWidth(280)
 
         self.bot_h_splitter.addWidget(self.packet_detail)
-        self.bot_h_splitter.addWidget(self.hex_view)
-        self.bot_h_splitter.setStretchFactor(0, 1)
-        self.bot_h_splitter.setStretchFactor(1, 1)
+        self.bot_h_splitter.addWidget(self.detection_panel)
+        self.bot_h_splitter.addWidget(self.right_tabs)
+        self.bot_h_splitter.setStretchFactor(0, 3)
+        self.bot_h_splitter.setStretchFactor(1, 4)
+        self.bot_h_splitter.setStretchFactor(2, 3)
+        self.bot_h_splitter.setSizes([380, 520, 340])
 
-        self.v_splitter.addWidget(self.top_h_splitter)
+        self.v_splitter.addWidget(self.packet_table)
         self.v_splitter.addWidget(self.bot_h_splitter)
 
-        # Give 50/50 vertical split by default so Packet Details has plenty of room
-        self.v_splitter.setStretchFactor(0, 1)
-        self.v_splitter.setStretchFactor(1, 1)
-        self.v_splitter.setSizes([400, 450])
+        # 45% Top, 55% Bottom vertical split
+        self.v_splitter.setStretchFactor(0, 4)
+        self.v_splitter.setStretchFactor(1, 5)
+        self.v_splitter.setSizes([400, 500])
 
         main_layout.addWidget(self.v_splitter)
 
@@ -465,6 +485,10 @@ class MainWindow(QMainWindow):
         queue_manager.signals.queue_status.connect(self.stats_panel.update_queue_status)
         self.bpf_edit.textChanged.connect(self.on_bpf_text_changed)
         self.bpf_edit.returnPressed.connect(self.on_bpf_return_pressed)
+        self.detection_panel.kill_requested.connect(self.on_kill_process_requested)
+        self.detection_panel.block_requested.connect(self.on_block_ip_requested)
+        self.detection_panel.quarantine_requested.connect(self.on_quarantine_binary_requested)
+        self.detection_panel.copy_udm_requested.connect(self.on_copy_udm_requested)
 
     def on_bpf_text_changed(self, text: str):
         """Filter packet table rows in real-time as user types in the filter bar."""
@@ -510,7 +534,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def on_packet_selected(self, pkt: dict):
-        """Update detail tree, hex dump view, and right sidebar stats panel when a packet row is clicked."""
+        """Update detail tree, detection panel, hex dump view, and right sidebar when a packet row is clicked."""
         if pkt:
             dst_ip = pkt.get("dst", "")
             src_ip = pkt.get("src", "")
@@ -525,6 +549,7 @@ class MainWindow(QMainWindow):
                         queue_manager.enqueue_ip(ip)
 
         self.packet_detail.display_packet(pkt)
+        self.detection_panel.display_packet(pkt)
         self.hex_view.display_packet(pkt)
         self.stats_panel.set_selected_packet(pkt)
 
@@ -543,7 +568,84 @@ class MainWindow(QMainWindow):
                 if selected_pkt.get("src") == ip or selected_pkt.get("dst") == ip:
                     selected_pkt["threat_data"] = threat_data
                     self.packet_detail.display_packet(selected_pkt)
+                    self.detection_panel.display_packet(selected_pkt)
                     self.stats_panel.set_selected_packet(selected_pkt)
+
+    @pyqtSlot(int)
+    def on_kill_process_requested(self, pid: int):
+        """Prompt confirmation and dispatch process termination on background QThread."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Kill Process",
+            f"Are you sure you want to terminate process PID {pid}?\n\n"
+            "This will send an immediate termination signal (SIGKILL).",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.statusbar.showMessage(f"Terminating PID {pid}...", 3000)
+            worker = ResponseWorkerThread("kill_process", pid=pid)
+            worker.action_completed.connect(self.on_response_action_completed)
+            self._active_workers.append(worker)
+            worker.finished.connect(lambda: self._cleanup_worker(worker))
+            worker.start()
+
+    @pyqtSlot(str)
+    def on_block_ip_requested(self, ip: str):
+        """Prompt confirmation and block remote IP at OS firewall level."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Block Remote IP",
+            f"Are you sure you want to block remote IP {ip} at the firewall level?\n\n"
+            "Outbound network communication to this destination will be dropped.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.statusbar.showMessage(f"Blocking IP {ip}...", 3000)
+            worker = ResponseWorkerThread("block_remote_ip", ip=ip)
+            worker.action_completed.connect(self.on_response_action_completed)
+            self._active_workers.append(worker)
+            worker.finished.connect(lambda: self._cleanup_worker(worker))
+            worker.start()
+
+    @pyqtSlot(str)
+    def on_quarantine_binary_requested(self, file_path: str):
+        """Prompt confirmation and move suspicious binary to quarantine folder with 000 permissions."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Quarantine Binary",
+            f"Are you sure you want to quarantine executable:\n'{file_path}'?\n\n"
+            "The file will be moved to ~/.sentinelshark/quarantine/ and its permissions stripped.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.statusbar.showMessage(f"Quarantining {file_path}...", 3000)
+            worker = ResponseWorkerThread("quarantine_file", file_path=file_path)
+            worker.action_completed.connect(self.on_response_action_completed)
+            self._active_workers.append(worker)
+            worker.finished.connect(lambda: self._cleanup_worker(worker))
+            worker.start()
+
+    @pyqtSlot()
+    def on_copy_udm_requested(self):
+        """Show notification when UDM JSON is copied to system clipboard."""
+        self.statusbar.showMessage("📋 UDM JSON copied to clipboard", 3500)
+
+    @pyqtSlot(bool, str)
+    def on_response_action_completed(self, success: bool, message: str):
+        """Display result notification from background response worker."""
+        self.statusbar.showMessage(message, 6000)
+        if success:
+            QMessageBox.information(self, "Response Action Successful", message)
+        else:
+            QMessageBox.warning(self, "Response Action Failed", message)
+
+    def _cleanup_worker(self, worker):
+        """Safely discard finished background response worker thread reference."""
+        if worker in self._active_workers:
+            self._active_workers.remove(worker)
 
     def start_capture(self, pcap_file: str = ""):
         """Start live packet capture or PCAP file reading thread."""
@@ -616,10 +718,11 @@ class MainWindow(QMainWindow):
         self.update_capture_status("Capture stopped.")
 
     def clear_all(self):
-        """Reset table, stats, inspector, hex dump, and queue status."""
+        """Reset table, stats, inspector, detection panel, hex dump, and queue status."""
         self.packet_table.clear_table()
         self.stats_panel.reset_stats()
         self.packet_detail.display_packet(None)
+        self.detection_panel.display_packet(None)
         self.hex_view.display_packet(None)
         queue_manager.clear()
 

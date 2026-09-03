@@ -8,20 +8,29 @@ from PyQt6.QtWidgets import (
 from app.config import config
 
 
+# Figma EDR severity color map
+SEVERITY_COLORS = {
+    "critical": {"bg": QColor(61, 26, 26, 200), "fg": QColor(248, 81, 73)},
+    "high":     {"bg": QColor(45, 31, 26, 180), "fg": QColor(255, 123, 114)},
+    "medium":   {"bg": QColor(61, 46, 10, 160), "fg": QColor(210, 153, 34)},
+    "safe":     {"bg": QColor(18, 42, 25, 180), "fg": QColor(46, 160, 67)},
+}
+
+
 class PacketTable(QTableWidget):
     """
-    High-performance packet table component displaying real-time network traffic.
-    Applies dynamic color-coding based on VirusTotal & AbuseIPDB Threat Intelligence scores.
+    High-performance packet table component displaying real-time network traffic
+    with EDR telemetry: PID, Process, MITRE ATT&CK tags, and Severity classification.
     """
 
     packet_selected = pyqtSignal(dict)
 
-    COLUMNS = ["No.", "Time", "Source", "Destination", "Protocol", "Length", "Info", "Threat Score"]
+    COLUMNS = ["No.", "Time", "PID", "Process", "Source", "Destination", "Protocol", "Length", "MITRE", "Severity", "Info"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.packets: List[Dict[str, Any]] = []
-        self.ip_row_map: Dict[str, List[int]] = {}  # Maps IP -> list of row indices
+        self.ip_row_map: Dict[str, List[int]] = {}
         self.current_filter: str = ""
         self.init_ui()
 
@@ -29,31 +38,30 @@ class PacketTable(QTableWidget):
         self.setColumnCount(len(self.COLUMNS))
         self.setHorizontalHeaderLabels(self.COLUMNS)
 
-        # Table Behavior
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.setAlternatingRowColors(True)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.setSortingEnabled(False)  # Disabled during live capture for performance
+        self.setSortingEnabled(False)
 
-        # Header sizing
         header = self.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)  # No.
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)  # Time
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # Source
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Destination
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)  # Protocol
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Interactive)  # Length
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)      # Info
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Interactive)  # Threat Score
+        # No., Time, PID, Process, Source, Destination, Protocol, Length, MITRE, Severity, Info
+        for i in range(len(self.COLUMNS)):
+            if i == 10:  # Info
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            else:
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
 
-        self.setColumnWidth(0, 60)
-        self.setColumnWidth(1, 100)
-        self.setColumnWidth(2, 130)
-        self.setColumnWidth(3, 130)
-        self.setColumnWidth(4, 80)
-        self.setColumnWidth(5, 70)
-        self.setColumnWidth(7, 120)
+        self.setColumnWidth(0, 50)    # No.
+        self.setColumnWidth(1, 95)    # Time
+        self.setColumnWidth(2, 55)    # PID
+        self.setColumnWidth(3, 90)    # Process
+        self.setColumnWidth(4, 120)   # Source
+        self.setColumnWidth(5, 120)   # Destination
+        self.setColumnWidth(6, 65)    # Protocol
+        self.setColumnWidth(7, 55)    # Length
+        self.setColumnWidth(8, 85)    # MITRE
+        self.setColumnWidth(9, 75)    # Severity
 
         self.itemSelectionChanged.connect(self._on_selection_changed)
 
@@ -69,9 +77,13 @@ class PacketTable(QTableWidget):
         q = self.current_filter
         tokens = q.split()
         
-        search_target = f"{pkt.get('src', '')} {pkt.get('dst', '')} {pkt.get('protocol', '')} {pkt.get('info', '')} {pkt.get('src_port', '')} {pkt.get('dst_port', '')}".lower()
+        search_target = (
+            f"{pkt.get('src', '')} {pkt.get('dst', '')} {pkt.get('protocol', '')} "
+            f"{pkt.get('info', '')} {pkt.get('src_port', '')} {pkt.get('dst_port', '')} "
+            f"{pkt.get('process_name', '')} {pkt.get('pid', '')} "
+            f"{' '.join(pkt.get('mitre_tags', []))}"
+        ).lower()
         
-        # Support "ip src X" or "ip dst X"
         if "ip" in tokens and "src" in tokens:
             try:
                 idx = tokens.index("src") + 1
@@ -95,7 +107,6 @@ class PacketTable(QTableWidget):
             except ValueError:
                 pass
 
-        # Substring/Token match
         return all(tok in search_target for tok in tokens)
 
     def _update_row_visibility(self, row: int):
@@ -126,26 +137,65 @@ class PacketTable(QTableWidget):
                 if dst_ip:
                     self.ip_row_map.setdefault(dst_ip, []).append(row)
 
-                threat_str = "0% Safe"
+                # Extract EDR fields
+                pid_val = pkt.get("pid", "")
+                process_name = pkt.get("process_name", "")
+                mitre_tags = pkt.get("mitre_tags", [])
+                mitre_str = ", ".join(mitre_tags) if mitre_tags else "—"
+                severity = pkt.get("severity", "safe")
+
                 items = [
-                    QTableWidgetItem(str(pkt.get("no", row + 1))),
-                    QTableWidgetItem(str(pkt.get("time", ""))),
-                    QTableWidgetItem(str(src_ip)),
-                    QTableWidgetItem(str(dst_ip)),
-                    QTableWidgetItem(str(pkt.get("protocol", ""))),
-                    QTableWidgetItem(str(pkt.get("length", 0))),
-                    QTableWidgetItem(str(pkt.get("info", ""))),
-                    QTableWidgetItem(threat_str)
+                    QTableWidgetItem(str(pkt.get("no", row + 1))),       # 0: No.
+                    QTableWidgetItem(str(pkt.get("time", ""))),           # 1: Time
+                    QTableWidgetItem(str(pid_val)),                       # 2: PID
+                    QTableWidgetItem(str(process_name)),                  # 3: Process
+                    QTableWidgetItem(str(src_ip)),                        # 4: Source
+                    QTableWidgetItem(str(dst_ip)),                        # 5: Destination
+                    QTableWidgetItem(str(pkt.get("protocol", ""))),       # 6: Protocol
+                    QTableWidgetItem(str(pkt.get("length", 0))),          # 7: Length
+                    QTableWidgetItem(mitre_str),                          # 8: MITRE
+                    QTableWidgetItem(severity.upper()),                   # 9: Severity
+                    QTableWidgetItem(str(pkt.get("info", ""))),           # 10: Info
                 ]
 
+                # Alignment
                 items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                items[5].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                items[7].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                items[2].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                items[7].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                items[9].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+                # PID accent color
+                if pid_val:
+                    items[2].setForeground(QBrush(QColor(88, 166, 255)))  # accent
+
+                # Protocol accent color
+                items[6].setForeground(QBrush(QColor(88, 166, 255)))
+
+                # MITRE tag styling (blue pill look via color)
+                if mitre_tags:
+                    items[8].setForeground(QBrush(QColor(88, 166, 255)))
+                else:
+                    items[8].setForeground(QBrush(QColor(72, 79, 88)))  # textDimmer
+
+                # Severity coloring
+                sev_colors = SEVERITY_COLORS.get(severity, SEVERITY_COLORS["safe"])
+                items[9].setForeground(QBrush(sev_colors["fg"]))
+                sev_font = items[9].font()
+                sev_font.setBold(True)
+                items[9].setFont(sev_font)
+
+                # Process styling - highlight LOLBins
+                from app.core.secops_engine import LOLBIN_SET
+                if process_name.lower() in LOLBIN_SET:
+                    items[3].setForeground(QBrush(QColor(248, 81, 73)))  # danger
+                    pf = items[3].font()
+                    pf.setBold(True)
+                    items[3].setFont(pf)
 
                 for col, item in enumerate(items):
                     self.setItem(row, col, item)
 
-                self._apply_row_style(row, pkt.get("threat_data"))
+                self._apply_row_style(row, pkt)
                 self._update_row_visibility(row)
 
                 if not self.isRowHidden(row):
@@ -161,75 +211,57 @@ class PacketTable(QTableWidget):
         self.add_packets_batch([pkt])
 
     def update_threat_intel(self, ip: str, threat_data: Dict[str, Any]):
-        """Dynamically update threat score and color-coding for all matching packet rows."""
+        """Dynamically update severity and color-coding for all matching packet rows."""
         rows = self.ip_row_map.get(ip, [])
         for row in rows:
             if row < len(self.packets):
-                # Calculate threat score
-                abuse_score = threat_data.get("abuse_score", 0)
-                vt_malicious = threat_data.get("vt_malicious", 0)
-                shodan_vulns = threat_data.get("shodan_vulns", [])
-
-                score = max(abuse_score, vt_malicious * 20)
-                if shodan_vulns and score < 50:
-                    score = 75
-
-                # Store threat data in packet model
                 self.packets[row]["threat_data"] = threat_data
-                self.packets[row]["threat_score"] = score
 
-                # Update Threat Score text column matching Redesigned UI (e.g., "0% Safe", "87% Risk", "99% Risk")
-                if threat_data.get("is_public") is False:
-                    score_text = "0% Safe"
-                elif score == 0:
-                    score_text = "0% Safe"
-                else:
-                    score_text = f"{score}% Risk"
+                # Recompute severity with threat data
+                from app.core.secops_engine import compute_severity
+                process_data = {
+                    "name": self.packets[row].get("process_name", ""),
+                    "pid": self.packets[row].get("pid", 0),
+                }
+                mitre_tags = self.packets[row].get("mitre_tags", [])
+                new_severity = compute_severity(threat_data, mitre_tags, process_data)
+                self.packets[row]["severity"] = new_severity
 
-                item = self.item(row, 7)
-                if item:
-                    item.setText(score_text)
+                # Update severity column text
+                sev_item = self.item(row, 9)
+                if sev_item:
+                    sev_item.setText(new_severity.upper())
+                    sev_colors = SEVERITY_COLORS.get(new_severity, SEVERITY_COLORS["safe"])
+                    sev_item.setForeground(QBrush(sev_colors["fg"]))
 
-                self._apply_row_style(row, threat_data, score)
+                self._apply_row_style(row, self.packets[row])
 
-    def _apply_row_style(self, row: int, threat_data: Optional[Dict[str, Any]], score: int = 0):
-        """Apply dynamic color-coding based on threat classification for Public IPs exclusively."""
-        if not threat_data or threat_data.get("is_public") is False:
+    def _apply_row_style(self, row: int, pkt: Dict[str, Any]):
+        """Apply dynamic row background color based on severity classification."""
+        severity = pkt.get("severity", "safe")
+        sev_colors = SEVERITY_COLORS.get(severity)
+
+        if not sev_colors:
             return
 
-        bg_color = None
-        text_color = None
-        font_bold = False
+        # Only color rows with non-safe severity or confirmed public IPs
+        if severity == "safe":
+            threat_data = pkt.get("threat_data")
+            if threat_data and threat_data.get("is_public") is True:
+                bg_color = sev_colors["bg"]
+            else:
+                return  # Don't color unanalyzed safe rows
+        else:
+            bg_color = sev_colors["bg"]
 
-        if score >= 90:
-            # Critical Threat: Red / Dark Crimson
-            bg_color = QColor(127, 29, 29, 210)   # #7f1d1d
-            text_color = QColor(254, 202, 202)   # #fecaca
-            font_bold = True
-        elif score >= 50:
-            # High Risk: Orange / Amber
-            bg_color = QColor(120, 53, 15, 190)   # #78350f
-            text_color = QColor(254, 243, 199)   # #fef3c7
-        elif score > 0:
-            # Low Risk: Yellow
-            bg_color = QColor(113, 63, 18, 160)
-            text_color = QColor(254, 240, 138)
-        elif threat_data.get("is_public") is True:
-            # Safe Public IP: Dark Green
-            bg_color = QColor(6, 78, 59, 180)     # #064e3b
-            text_color = QColor(209, 250, 229)   # #d1fae5
-
-        if bg_color:
-            for col in range(self.columnCount()):
-                item = self.item(row, col)
-                if item:
-                    item.setBackground(QBrush(bg_color))
-                    if text_color:
-                        item.setForeground(QBrush(text_color))
-                    if font_bold:
-                        font = item.font()
-                        font.setBold(True)
-                        item.setFont(font)
+        for col in range(self.columnCount()):
+            item = self.item(row, col)
+            if item:
+                item.setBackground(QBrush(bg_color))
+                if severity in ("critical", "high"):
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
 
     def _on_selection_changed(self):
         """Emit selected packet data when row selection changes."""

