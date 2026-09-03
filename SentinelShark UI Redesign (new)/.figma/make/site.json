@@ -1,0 +1,10 @@
+{
+  "description": "This platform enhances network security by providing real-time endpoint telemetry and incident response tools, empowering security teams to detect and mitigate threats effectively.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
