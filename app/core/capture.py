@@ -69,25 +69,28 @@ def enrich_packet_with_telemetry(pkt_dict: dict) -> dict:
     Enrich a parsed packet dict with endpoint telemetry (process correlation)
     and MITRE ATT&CK heuristic tags for EDR functionality.
     """
+    src_ip = str(pkt_dict.get("src") or "")
+    dst_ip = str(pkt_dict.get("dst") or "")
     try:
         src_port = int(pkt_dict.get("src_port") or 0)
-        dst_ip = pkt_dict.get("dst", "")
+    except (ValueError, TypeError):
+        src_port = 0
+    try:
         dst_port = int(pkt_dict.get("dst_port") or 0)
     except (ValueError, TypeError):
-        src_port, dst_ip, dst_port = 0, "", 0
+        dst_port = 0
 
-    # Correlate socket to process
-    process_data = {}
-    if src_port > 0:
-        try:
-            process_data = telemetry_enricher.correlate_socket(src_port, dst_ip, dst_port)
-        except Exception:
-            pass
+    # Bidirectional socket correlation (handles outbound and inbound)
+    process_data = telemetry_enricher.correlate_packet(src_ip, src_port, dst_ip, dst_port)
 
-    # Inject process fields into packet dict
-    pkt_dict["pid"] = process_data.get("pid", "")
-    pkt_dict["ppid"] = process_data.get("ppid", "")
-    pkt_dict["process_name"] = process_data.get("name", "")
+    # Fallback display values if unresolved
+    raw_pid = process_data.get("pid")
+    pid_val = str(raw_pid) if raw_pid not in ("", None) else "—"
+    proc_name = process_data.get("name") or "System / Kernel"
+
+    pkt_dict["pid"] = pid_val
+    pkt_dict["ppid"] = process_data.get("ppid", 0)
+    pkt_dict["process_name"] = proc_name
     pkt_dict["cmdline"] = process_data.get("cmdline", "")
     pkt_dict["username"] = process_data.get("username", "")
     pkt_dict["exe_path"] = process_data.get("exe_path", "")
@@ -313,6 +316,7 @@ class LiveCaptureThread(QThread):
                     break
                 self._packet_count += 1
                 pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count)
+                enrich_packet_with_telemetry(pkt_data)
                 packet_batch.append(pkt_data)
                 self.packet_received.emit(pkt_data)
 
@@ -351,6 +355,7 @@ class LiveCaptureThread(QThread):
                     break
                 self._packet_count += 1
                 pkt_data = PacketDissector.dissect_pyshark_packet(packet, self._packet_count)
+                enrich_packet_with_telemetry(pkt_data)
                 packet_batch.append(pkt_data)
                 self.packet_received.emit(pkt_data)
 

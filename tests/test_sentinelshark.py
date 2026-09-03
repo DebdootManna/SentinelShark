@@ -379,6 +379,94 @@ class TestSentinelSharkCore(unittest.TestCase):
         self.assertEqual(res, res_cached)
 
 
+    def test_baseline_mitre_heuristics(self):
+        """Test that normal capture baseline traffic is tagged with MITRE techniques."""
+        from app.core.secops_engine import evaluate_heuristics
+
+        empty_proc = {"name": "", "pid": 0}
+
+        # DNS port 53
+        dns_pkt = {"src_port": 54321, "dst_port": 53, "protocol": "DNS"}
+        self.assertIn("T1071.004", evaluate_heuristics(empty_proc, dns_pkt))
+
+        # Plain HTTP port 80
+        http_pkt = {"src_port": 54322, "dst_port": 80, "protocol": "HTTP"}
+        self.assertIn("T1071.001", evaluate_heuristics(empty_proc, http_pkt))
+
+        # HTTPS port 443
+        https_pkt = {"src_port": 54323, "dst_port": 443, "protocol": "HTTPS"}
+        self.assertIn("T1071", evaluate_heuristics(empty_proc, https_pkt))
+
+        # SSH port 22
+        ssh_pkt = {"src_port": 54324, "dst_port": 22, "protocol": "SSH"}
+        self.assertIn("T1021.004", evaluate_heuristics(empty_proc, ssh_pkt))
+
+    def test_stats_panel_edr_widgets(self):
+        """Test StatsPanel batch processing and EDR card widget updates."""
+        from PyQt6.QtWidgets import QApplication
+        from app.ui.components.statspanel import StatsPanel
+
+        app = QApplication.instance() or QApplication([])
+        panel = StatsPanel()
+
+        batch = [
+            {"length": 256, "protocol": "HTTPS", "process_name": "Brave Browser", "mitre_tags": ["T1071"], "severity": "safe"},
+            {"length": 128, "protocol": "DNS", "process_name": "mDNSResponder", "mitre_tags": ["T1071.004"], "severity": "safe"},
+            {"length": 512, "protocol": "HTTP", "process_name": "curl", "mitre_tags": ["T1105", "T1071.001"], "severity": "high"},
+        ]
+
+        panel.update_packets_batch(batch)
+
+        self.assertEqual(panel.total_packets, 3)
+        self.assertEqual(panel.processes["Brave Browser"], 1)
+        self.assertEqual(panel.processes["curl"], 1)
+        self.assertEqual(panel.mitre_techniques["T1071"], 1)
+        self.assertEqual(panel.mitre_techniques["T1105"], 1)
+
+        # Check widget rows populated
+        self.assertTrue(panel.proc_empty_lbl.isHidden())
+        self.assertTrue(panel.mitre_empty_lbl.isHidden())
+        self.assertFalse(panel.proc_row_widgets[0]["container"].isHidden())
+        self.assertFalse(panel.mitre_row_widgets[0]["container"].isHidden())
+
+    def test_packet_table_columns_and_alignment(self):
+        """Test PacketTable column ordering, header left-alignment, and Info item mapping."""
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QApplication
+        from app.ui.components.packettable import PacketTable
+
+        app = QApplication.instance() or QApplication([])
+        table = PacketTable()
+
+        self.assertEqual(table.columnCount(), 11)
+        self.assertEqual(table.horizontalHeaderItem(10).text(), "Info")
+        self.assertEqual(int(table.horizontalHeader().defaultAlignment()), int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter))
+
+        # Add packet without resolved PID
+        test_pkt = {
+            "no": 1,
+            "time": "14:00:00.123",
+            "src": "10.0.0.1",
+            "dst": "100.21.132.145",
+            "protocol": "HTTPS",
+            "length": 416,
+            "info": "TLS/HTTPS Encrypted Session",
+            "pid": "—",
+            "process_name": "System / Kernel",
+            "mitre_tags": ["T1071"],
+            "severity": "safe"
+        }
+        table.add_packet(test_pkt)
+
+        self.assertEqual(table.item(0, 2).text(), "—")
+        self.assertEqual(table.item(0, 3).text(), "System / Kernel")
+        self.assertEqual(table.item(0, 8).text(), "T1071")
+        self.assertEqual(table.item(0, 9).text(), "SAFE")
+        self.assertEqual(table.item(0, 10).text(), "TLS/HTTPS Encrypted Session")
+        self.assertEqual(int(table.item(0, 10).textAlignment()), int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter))
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

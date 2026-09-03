@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import Dict, Any, Optional
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
@@ -179,10 +180,12 @@ class StatsPanel(QWidget):
         self.suspicious_count = 0
         self.critical_count = 0
         self.protocols: Dict[str, int] = {}
-        self.processes: Dict[str, int] = {}
-        self.mitre_techniques: Dict[str, int] = {}
+        self.processes = Counter()
+        self.mitre_techniques = Counter()
         self.selected_pkt: Optional[Dict[str, Any]] = None
         self.proto_row_widgets: Dict[str, dict] = {}
+        self.proc_row_widgets: list[dict] = []
+        self.mitre_row_widgets: list[dict] = []
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.init_ui()
@@ -217,21 +220,114 @@ class StatsPanel(QWidget):
         layout.addLayout(grid)
 
         # 2. MITRE ATT&CK Coverage Panel
-        self.mitre_card = CollapsibleCard("MITRE ATT&CK COVERAGE", expanded_min_height=110)
+        self.mitre_card = CollapsibleCard("MITRE ATT&CK COVERAGE", expanded_min_height=140)
         self.mitre_layout = self.mitre_card.content_layout
-        self.mitre_layout.setSpacing(4)
+        self.mitre_layout.setSpacing(5)
         self.mitre_empty_lbl = QLabel("No techniques tagged yet")
         self.mitre_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
         self.mitre_layout.addWidget(self.mitre_empty_lbl)
+
+        for _ in range(5):
+            row_container = QWidget()
+            row_layout = QHBoxLayout(row_container)
+            row_layout.setContentsMargins(0, 2, 0, 2)
+            row_layout.setSpacing(6)
+
+            lbl_tag = QLabel()
+            lbl_tag.setFixedWidth(68)
+            lbl_tag.setStyleSheet("""
+                color: #58A6FF; font-family: 'JetBrains Mono', monospace;
+                font-size: 9px; font-weight: 700; background-color: #1F3A5F;
+                border: 1px solid #2A4A7A; border-radius: 3px; padding: 1px 3px;
+            """)
+
+            lbl_name = QLabel()
+            lbl_name.setFixedWidth(85)
+            lbl_name.setStyleSheet("color: #8B949E; font-size: 10px;")
+
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(5)
+            bar.setStyleSheet("""
+                QProgressBar { background-color: #21262D; border: none; border-radius: 2px; }
+                QProgressBar::chunk { background-color: #D29922; border-radius: 2px; }
+            """)
+
+            lbl_count = QLabel("0")
+            lbl_count.setFixedWidth(34)
+            lbl_count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            lbl_count.setStyleSheet("color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+
+            row_layout.addWidget(lbl_tag)
+            row_layout.addWidget(lbl_name)
+            row_layout.addWidget(bar)
+            row_layout.addWidget(lbl_count)
+
+            row_container.setVisible(False)
+            self.mitre_layout.addWidget(row_container)
+            self.mitre_row_widgets.append({
+                "container": row_container,
+                "tag": lbl_tag,
+                "name": lbl_name,
+                "bar": bar,
+                "count": lbl_count
+            })
+
         layout.addWidget(self.mitre_card)
 
         # 3. Top Processes Panel
-        self.proc_card = CollapsibleCard("TOP PROCESSES", expanded_min_height=110)
+        self.proc_card = CollapsibleCard("TOP PROCESSES", expanded_min_height=140)
         self.proc_layout = self.proc_card.content_layout
-        self.proc_layout.setSpacing(4)
+        self.proc_layout.setSpacing(5)
         self.proc_empty_lbl = QLabel("No process telemetry recorded")
         self.proc_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
         self.proc_layout.addWidget(self.proc_empty_lbl)
+
+        for i in range(5):
+            row_container = QWidget()
+            row_layout = QHBoxLayout(row_container)
+            row_layout.setContentsMargins(0, 2, 0, 2)
+            row_layout.setSpacing(6)
+
+            lbl_rank = QLabel(f"{i+1}.")
+            lbl_rank.setFixedWidth(14)
+            lbl_rank.setStyleSheet("color: #484F58; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+
+            lbl_name = QLabel()
+            lbl_name.setFixedWidth(80)
+            lbl_name.setStyleSheet("color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;")
+
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(5)
+            bar.setStyleSheet("""
+                QProgressBar { background-color: #21262D; border: none; border-radius: 2px; }
+                QProgressBar::chunk { background-color: #58A6FF; border-radius: 2px; }
+            """)
+
+            lbl_count = QLabel("0")
+            lbl_count.setFixedWidth(36)
+            lbl_count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            lbl_count.setStyleSheet("color: #8B949E; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+
+            row_layout.addWidget(lbl_rank)
+            row_layout.addWidget(lbl_name)
+            row_layout.addWidget(bar)
+            row_layout.addWidget(lbl_count)
+
+            row_container.setVisible(False)
+            self.proc_layout.addWidget(row_container)
+            self.proc_row_widgets.append({
+                "container": row_container,
+                "name": lbl_name,
+                "bar": bar,
+                "count": lbl_count
+            })
+
         layout.addWidget(self.proc_card)
 
         # 4. Protocol Breakdown Panel
@@ -388,52 +484,114 @@ class StatsPanel(QWidget):
         layout.addWidget(lbl_state)
         return {"layout": layout, "state": lbl_state}
 
-    def update_packet_stats(self, pkt: Dict[str, Any]):
-        """Record new packet statistics."""
-        self.total_packets += 1
-        pkt_bytes = pkt.get("length", 0)
-        self.total_bytes += pkt_bytes
+    def update_packets_batch(self, pkt_list: list):
+        """Batch update statistics for a list of packets efficiently."""
+        if not pkt_list:
+            return
 
-        # Protocol counts
-        raw_proto = pkt.get("protocol", "OTHER").upper()
-        proto = raw_proto if raw_proto in TRACKED_PROTOCOLS else "OTHER"
-        self.protocols[proto] = self.protocols.get(proto, 0) + 1
+        for pkt in pkt_list:
+            self.total_packets += 1
+            pkt_bytes = pkt.get("length", 0) or 0
+            self.total_bytes += pkt_bytes
 
-        # Process telemetry counts
-        pname = pkt.get("process_name", "")
-        if pname:
-            self.processes[pname] = self.processes.get(pname, 0) + 1
+            # Protocol counts
+            raw_proto = (pkt.get("protocol") or "OTHER").upper()
+            proto = raw_proto if raw_proto in TRACKED_PROTOCOLS else "OTHER"
+            self.protocols[proto] = self.protocols.get(proto, 0) + 1
 
-        # MITRE ATT&CK technique counts
-        for tag in pkt.get("mitre_tags", []):
-            if tag:
-                self.mitre_techniques[tag] = self.mitre_techniques.get(tag, 0) + 1
+            # Process telemetry counts
+            pname = pkt.get("process_name") or "System / Kernel"
+            self.processes[pname] += 1
+
+            # MITRE ATT&CK technique counts
+            for tag in pkt.get("mitre_tags", []):
+                if tag:
+                    self.mitre_techniques[tag] += 1
+
+            # Severity counts
+            sev = pkt.get("severity", "safe")
+            if sev in ("critical", "high"):
+                self.critical_count += 1
+            else:
+                self.safe_count += 1
 
         # Update metric cards
         self.card_packets.set_value(f"{self.total_packets:,}")
-        
         if self.total_bytes > 1024 * 1024:
             bytes_str = f"{self.total_bytes / (1024 * 1024):.1f} MB"
         else:
             bytes_str = f"{self.total_bytes / 1024:.1f} KB"
         self.card_bytes.set_value(bytes_str)
+        self.card_safe.set_value(f"{self.safe_count:,}")
+        self.card_threats.set_value(f"{self.critical_count:,}")
 
         self._refresh_protocol_bars()
         self._refresh_edr_sections()
 
-    def _refresh_edr_sections(self):
-        """Update MITRE and Process cards dynamically."""
-        if self.mitre_techniques:
-            top_mitre = sorted(self.mitre_techniques.items(), key=lambda x: x[1], reverse=True)[:4]
-            lines = [f"• {tag}: {cnt} event(s)" for tag, cnt in top_mitre]
-            self.mitre_empty_lbl.setText("\n".join(lines))
-            self.mitre_empty_lbl.setStyleSheet("color: #58A6FF; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+    def update_packet_stats(self, pkt: Dict[str, Any]):
+        """Record single packet statistics."""
+        self.update_packets_batch([pkt])
 
-        if self.processes:
-            top_procs = sorted(self.processes.items(), key=lambda x: x[1], reverse=True)[:4]
-            lines = [f"• {p}: {cnt} msg(s)" for p, cnt in top_procs]
-            self.proc_empty_lbl.setText("\n".join(lines))
-            self.proc_empty_lbl.setStyleSheet("color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-size: 10px;")
+    def _refresh_edr_sections(self):
+        """Update MITRE and Process cards dynamically with progress bars and badges."""
+        from app.core.secops_engine import TECHNIQUE_NAMES, LOLBIN_SET
+
+        # 1. Top Processes
+        top_procs = self.processes.most_common(5)
+        if not top_procs:
+            self.proc_empty_lbl.setVisible(True)
+            for w in self.proc_row_widgets:
+                w["container"].setVisible(False)
+        else:
+            self.proc_empty_lbl.setVisible(False)
+            max_proc_cnt = top_procs[0][1] if top_procs else 1
+            for i, w in enumerate(self.proc_row_widgets):
+                if i < len(top_procs):
+                    pname, cnt = top_procs[i]
+                    disp_name = pname[:12] + "…" if len(pname) > 13 else pname
+                    w["name"].setText(disp_name)
+                    pct = int((cnt / max_proc_cnt) * 100) if max_proc_cnt > 0 else 0
+                    w["bar"].setValue(pct)
+                    w["count"].setText(str(cnt))
+
+                    # Highlight LOLBins in danger red
+                    if any(lol in pname.lower() for lol in LOLBIN_SET):
+                        w["name"].setStyleSheet("color: #F85149; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;")
+                        w["bar"].setStyleSheet("""
+                            QProgressBar { background-color: #21262D; border: none; border-radius: 2px; }
+                            QProgressBar::chunk { background-color: #F85149; border-radius: 2px; }
+                        """)
+                    else:
+                        w["name"].setStyleSheet("color: #E6EDF3; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;")
+                        w["bar"].setStyleSheet("""
+                            QProgressBar { background-color: #21262D; border: none; border-radius: 2px; }
+                            QProgressBar::chunk { background-color: #58A6FF; border-radius: 2px; }
+                        """)
+                    w["container"].setVisible(True)
+                else:
+                    w["container"].setVisible(False)
+
+        # 2. MITRE ATT&CK Coverage
+        top_mitre = self.mitre_techniques.most_common(5)
+        if not top_mitre:
+            self.mitre_empty_lbl.setVisible(True)
+            for w in self.mitre_row_widgets:
+                w["container"].setVisible(False)
+        else:
+            self.mitre_empty_lbl.setVisible(False)
+            max_mitre_cnt = top_mitre[0][1] if top_mitre else 1
+            for i, w in enumerate(self.mitre_row_widgets):
+                if i < len(top_mitre):
+                    tag, cnt = top_mitre[i]
+                    tech_desc = TECHNIQUE_NAMES.get(tag, "Technique")
+                    w["tag"].setText(tag)
+                    w["name"].setText(tech_desc[:14])
+                    pct = int((cnt / max_mitre_cnt) * 100) if max_mitre_cnt > 0 else 0
+                    w["bar"].setValue(pct)
+                    w["count"].setText(f"({cnt})")
+                    w["container"].setVisible(True)
+                else:
+                    w["container"].setVisible(False)
 
     def _refresh_protocol_bars(self):
         """Render top protocol distribution bars matching Redesigned UI smoothly without layout recreation."""
@@ -549,5 +707,6 @@ class StatsPanel(QWidget):
         self.proc_empty_lbl.setText("No process telemetry recorded")
         self.proc_empty_lbl.setStyleSheet("color: #8B949E; font-family: monospace; font-size: 11px;")
         self._refresh_protocol_bars()
+        self._refresh_edr_sections()
         self.update_queue_status(0, 0)
         self.set_selected_packet(None)

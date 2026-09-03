@@ -45,6 +45,8 @@ class PacketTable(QTableWidget):
         self.setSortingEnabled(False)
 
         header = self.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
         # No., Time, PID, Process, Source, Destination, Protocol, Length, MITRE, Severity, Info
         for i in range(len(self.COLUMNS)):
             if i == 10:  # Info
@@ -52,16 +54,16 @@ class PacketTable(QTableWidget):
             else:
                 header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
 
-        self.setColumnWidth(0, 50)    # No.
-        self.setColumnWidth(1, 95)    # Time
-        self.setColumnWidth(2, 55)    # PID
-        self.setColumnWidth(3, 90)    # Process
-        self.setColumnWidth(4, 120)   # Source
-        self.setColumnWidth(5, 120)   # Destination
-        self.setColumnWidth(6, 65)    # Protocol
-        self.setColumnWidth(7, 55)    # Length
-        self.setColumnWidth(8, 85)    # MITRE
-        self.setColumnWidth(9, 75)    # Severity
+        self.setColumnWidth(0, 55)    # No.
+        self.setColumnWidth(1, 105)   # Time
+        self.setColumnWidth(2, 65)    # PID
+        self.setColumnWidth(3, 110)   # Process
+        self.setColumnWidth(4, 130)   # Source
+        self.setColumnWidth(5, 130)   # Destination
+        self.setColumnWidth(6, 75)    # Protocol
+        self.setColumnWidth(7, 60)    # Length
+        self.setColumnWidth(8, 90)    # MITRE
+        self.setColumnWidth(9, 85)    # Severity
 
         self.itemSelectionChanged.connect(self._on_selection_changed)
 
@@ -138,8 +140,13 @@ class PacketTable(QTableWidget):
                     self.ip_row_map.setdefault(dst_ip, []).append(row)
 
                 # Extract EDR fields
-                pid_val = pkt.get("pid", "")
-                process_name = pkt.get("process_name", "")
+                raw_pid = pkt.get("pid")
+                if raw_pid not in (None, "", "0", 0):
+                    pid_val = str(raw_pid)
+                else:
+                    pid_val = "—"
+
+                process_name = pkt.get("process_name") or "System / Kernel"
                 mitre_tags = pkt.get("mitre_tags", [])
                 mitre_str = ", ".join(mitre_tags) if mitre_tags else "—"
                 severity = pkt.get("severity", "safe")
@@ -158,15 +165,24 @@ class PacketTable(QTableWidget):
                     QTableWidgetItem(str(pkt.get("info", ""))),           # 10: Info
                 ]
 
-                # Alignment
-                items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                items[2].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                items[7].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                items[9].setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                # Explicit Column Text Alignments matching Header
+                items[0].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter) # No.
+                items[1].setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Time
+                items[2].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter) # PID
+                items[3].setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Process
+                items[4].setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Source
+                items[5].setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Destination
+                items[6].setTextAlignment(Qt.AlignmentFlag.AlignCenter)                                # Protocol
+                items[7].setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter) # Length
+                items[8].setTextAlignment(Qt.AlignmentFlag.AlignCenter)                                # MITRE
+                items[9].setTextAlignment(Qt.AlignmentFlag.AlignCenter)                                # Severity
+                items[10].setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) # Info
 
-                # PID accent color
-                if pid_val:
-                    items[2].setForeground(QBrush(QColor(88, 166, 255)))  # accent
+                # PID styling
+                if pid_val != "—":
+                    items[2].setForeground(QBrush(QColor(88, 166, 255)))  # accent blue
+                else:
+                    items[2].setForeground(QBrush(QColor(72, 79, 88)))   # dimmed
 
                 # Protocol accent color
                 items[6].setForeground(QBrush(QColor(88, 166, 255)))
@@ -184,13 +200,18 @@ class PacketTable(QTableWidget):
                 sev_font.setBold(True)
                 items[9].setFont(sev_font)
 
-                # Process styling - highlight LOLBins
+                # Process styling - highlight LOLBins vs System / Kernel vs normal app
                 from app.core.secops_engine import LOLBIN_SET
-                if process_name.lower() in LOLBIN_SET:
-                    items[3].setForeground(QBrush(QColor(248, 81, 73)))  # danger
+                pname_lower = process_name.lower()
+                if any(lol in pname_lower for lol in LOLBIN_SET):
+                    items[3].setForeground(QBrush(QColor(248, 81, 73)))  # danger red
                     pf = items[3].font()
                     pf.setBold(True)
                     items[3].setFont(pf)
+                elif process_name == "System / Kernel":
+                    items[3].setForeground(QBrush(QColor(139, 148, 158)))  # muted
+                else:
+                    items[3].setForeground(QBrush(QColor(230, 237, 243)))  # bright text
 
                 for col, item in enumerate(items):
                     self.setItem(row, col, item)

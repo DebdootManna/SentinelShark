@@ -522,9 +522,10 @@ class MainWindow(QMainWindow):
         if not pkt_list:
             return
         self.packet_table.add_packets_batch(pkt_list)
-        for pkt in pkt_list:
-            self.stats_panel.update_packet_stats(pkt)
-            if self.analyze_pcap_threats:
+        self.stats_panel.update_packets_batch(pkt_list)
+
+        if self.analyze_pcap_threats:
+            for pkt in pkt_list:
                 dst_ip = pkt.get("dst", "")
                 if dst_ip:
                     queue_manager.enqueue_ip(dst_ip)
