@@ -34,4 +34,4 @@ BEGIN
     END
 END
 
-// 1 RT_MANIFEST "SentinelShark.manifest"
+1 24 "app.manifest"

@@ -70,6 +70,8 @@ set(SOURCES
     src/ui/InspectionPanel.cpp
     src/ui/SettingsDialog.h
     src/ui/SettingsDialog.cpp
+    src/ui/InterfaceSelectionDialog.h
+    src/ui/InterfaceSelectionDialog.cpp
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
 
@@ -85,6 +87,7 @@ add_executable(SentinelShark WIN32 ${SOURCES})
 target_include_directories(SentinelShark PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/resources
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 

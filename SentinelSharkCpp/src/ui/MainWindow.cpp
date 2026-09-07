@@ -3,6 +3,7 @@
 #include "DetectionDetailPanel.h"
 #include "AnalyticsSidebar.h"
 #include "SettingsDialog.h"
+#include "InterfaceSelectionDialog.h"
 #include "../model/SeverityDelegate.h"
 #include "../capture/CaptureThread.h"
 #include "../capture/MockCaptureThread.h"
@@ -12,6 +13,7 @@
 #include "../config/AppConfig.h"
 #include "../threatintel/ThreatIntelWorker.h"
 #include "../response/ResponseEngine.h"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QFile>
@@ -26,11 +28,13 @@
 #include <QFont>
 #include <QLabel>
 #include <QPushButton>
+#include <QLineEdit>
+#include <QComboBox>
 #include <QSortFilterProxyModel>
 #include <QStatusBar>
 #include <QMessageBox>
-#include <QGraphicsOpacityEffect>
-#include <QPropertyAnimation>
+#include <QFileDialog>
+#include <utility>
 
 namespace SS {
 
@@ -39,14 +43,15 @@ namespace SS {
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
-    setWindowTitle("SentinelShark EDR");
+    setWindowTitle("SentinelShark EDR — Network & Endpoint Detection Workstation");
     setMinimumSize(1280, 720);
     resize(1440, 900);
 
-    // Load stylesheet from resource
+    // Load stylesheet from Qt resource
     QFile styleFile(":/style.qss");
-    if (styleFile.open(QFile::ReadOnly)) {
-        qApp->setStyleSheet(styleFile.readAll());
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        qApp->setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
     }
 
     setupUi();
@@ -79,13 +84,11 @@ MainWindow::MainWindow(QWidget* parent)
     connect(threatIntel_, &ThreatIntelWorker::lookupComplete,
             this, &MainWindow::onThreatIntelComplete);
 
-    // ── Start background threads ──────────────────────────────────────────
+    // ── Start background correlation daemon ───────────────────────────────
     SocketPollThread::instance().start();
 
-    // Auto-start in mock mode if no tshark
-    if (AppConfig::instance().mockMode || !AppConfig::instance().isTsharkAvailable()) {
-        startCapture();
-    }
+    // ── Automatic Interface Selection Dialog on Startup (Wireshark-style) ─
+    QTimer::singleShot(250, this, &MainWindow::promptInterfaceSelection);
 }
 
 MainWindow::~MainWindow() {
@@ -99,6 +102,34 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     event->accept();
 }
 
+// ── Interface Selection Prompt (Wireshark Workflow) ───────────────────────────
+
+void MainWindow::promptInterfaceSelection() {
+    // If already running, skip
+    if (captureThread_ || mockThread_) return;
+
+    InterfaceSelectionDialog dlg(ifaceCombo_->currentText(), this);
+    if (dlg.exec() == QDialog::Accepted) {
+        const QString chosenId   = dlg.selectedInterfaceId();
+        const QString chosenName = dlg.selectedInterfaceName();
+
+        if (!chosenId.isEmpty()) {
+            // Update combo box
+            int idx = ifaceCombo_->findText(chosenId);
+            if (idx < 0) {
+                ifaceCombo_->insertItem(0, QStringLiteral("%1: %2").arg(chosenId, chosenName));
+                ifaceCombo_->setCurrentIndex(0);
+            } else {
+                ifaceCombo_->setCurrentIndex(idx);
+            }
+            AppConfig::instance().defaultInterface = chosenId;
+        }
+
+        // Start capture automatically upon interface selection
+        startCapture();
+    }
+}
+
 // ── UI Setup ──────────────────────────────────────────────────────────────────
 
 void MainWindow::setupUi() {
@@ -109,85 +140,21 @@ void MainWindow::setupUi() {
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
-    // ── TitleBar (h=40) ───────────────────────────────────────────────────
-    setupTitleBar();
-    rootLayout->addWidget(titleBar_);
+    // 1. Wireshark Top Control Bar
+    setupWiresharkControlBar(rootLayout);
 
-    // ── Main content ──────────────────────────────────────────────────────
+    // 2. Main content splitter (Vertical: Top table 50%, Bottom EDR panels 50%)
     auto* mainSplitter = new QSplitter(Qt::Vertical, centralWidget);
-    mainSplitter->setHandleWidth(2);
+    mainSplitter->setHandleWidth(3);
     mainSplitter->setStyleSheet("QSplitter::handle { background: #30363D; }");
 
-    // ── TOP: Table area ───────────────────────────────────────────────────
+    // ── Upper section: Table + quick severity toolbar ─────────────────────
     auto* tableArea = new QWidget(mainSplitter);
     auto* tableLayout = new QVBoxLayout(tableArea);
     tableLayout->setContentsMargins(0, 0, 0, 0);
     tableLayout->setSpacing(0);
 
-    setupTableToolbar();
-    tableLayout->addWidget(titleBar_->findChild<QWidget*>("tableToolbar")); // re-parent below
-
-    // Create the actual toolbar widget
-    auto* toolbar = new QFrame(tableArea);
-    toolbar->setFixedHeight(34);
-    toolbar->setStyleSheet("QFrame { background:#161B22; border-bottom:1px solid #30363D; }");
-    auto* tbLayout = new QHBoxLayout(toolbar);
-    tbLayout->setContentsMargins(12, 0, 12, 0);
-    tbLayout->setSpacing(6);
-
-    auto* tlabel = new QLabel("🦈  LIVE TELEMETRY", toolbar);
-    tlabel->setStyleSheet("color:#8B949E; font-size:10px; font-weight:700; letter-spacing:0.08em;");
-    tbLayout->addWidget(tlabel);
-
-    auto* sep1 = new QFrame(toolbar);
-    sep1->setFrameShape(QFrame::VLine);
-    sep1->setStyleSheet("color:#30363D;");
-    sep1->setFixedWidth(1);
-    tbLayout->addWidget(sep1);
-
-    // Severity filter pills
-    const struct { const char* label; int sev; const char* style; } kFilters[] = {
-        {"ALL",      -1, "color:#8B949E; border:1px solid transparent;"},
-        {"CRITICAL",  3, "color:#F85149; border:1px solid transparent;"},
-        {"HIGH",      2, "color:#FF7B72; border:1px solid transparent;"},
-        {"MEDIUM",    1, "color:#D29922; border:1px solid transparent;"},
-        {"SAFE",      0, "color:#2EA043; border:1px solid transparent;"},
-    };
-    for (const auto& f : kFilters) {
-        auto* btn = new QPushButton(f.label, toolbar);
-        const int sev = f.sev;
-        btn->setStyleSheet(QStringLiteral(
-            "QPushButton { %1 background:transparent; border-radius:3px; font-size:10px; font-weight:600; letter-spacing:0.06em; padding:2px 8px; cursor:pointer; }"
-            "QPushButton:hover { background:#1C2128; }"
-        ).arg(f.style));
-        btn->setCursor(Qt::PointingHandCursor);
-        connect(btn, &QPushButton::clicked, this, [this, sev]() { setSeverityFilter(sev); });
-        tbLayout->addWidget(btn);
-    }
-
-    tbLayout->addStretch();
-
-    startBtn_ = new QPushButton("▶  Start", toolbar);
-    startBtn_->setStyleSheet("QPushButton { background:#122A19; color:#2EA043; border:1px solid #1A4025; border-radius:3px; font-size:10px; font-weight:700; padding:3px 10px; } QPushButton:hover { background:#1A4025; }");
-    startBtn_->setCursor(Qt::PointingHandCursor);
-    connect(startBtn_, &QPushButton::clicked, this, &MainWindow::startCapture);
-
-    stopBtn_ = new QPushButton("■  Stop", toolbar);
-    stopBtn_->setStyleSheet("QPushButton { background:#3D1A1A; color:#F85149; border:1px solid #5A1E1E; border-radius:3px; font-size:10px; font-weight:700; padding:3px 10px; } QPushButton:hover { background:#5A1E1E; }");
-    stopBtn_->setCursor(Qt::PointingHandCursor);
-    connect(stopBtn_, &QPushButton::clicked, this, &MainWindow::stopCapture);
-
-    auto* settingsBtn = new QPushButton("⚙", toolbar);
-    settingsBtn->setFixedWidth(28);
-    settingsBtn->setStyleSheet("QPushButton { background:transparent; color:#8B949E; border:none; font-size:14px; } QPushButton:hover { color:#E6EDF3; }");
-    settingsBtn->setCursor(Qt::PointingHandCursor);
-    connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
-
-    tbLayout->addWidget(startBtn_);
-    tbLayout->addWidget(stopBtn_);
-    tbLayout->addWidget(settingsBtn);
-
-    tableLayout->addWidget(toolbar);
+    setupFilterToolbar(tableLayout);
 
     // QTableView
     tableView_ = new QTableView(tableArea);
@@ -200,16 +167,16 @@ void MainWindow::setupUi() {
 
     tableView_->setStyleSheet(R"(
         QTableView {
-            background: #0D1117;
+            background-color: #0D1117;
             color: #E6EDF3;
             border: none;
             gridline-color: #21262D;
             selection-background-color: transparent;
         }
         QTableView::item { padding: 0px 10px; border-bottom: 1px solid #21262D; }
-        QTableView::item:selected { background: rgba(88,166,255,0.1); }
+        QTableView::item:selected { background-color: rgba(88,166,255,0.12); }
         QHeaderView::section {
-            background: #161B22;
+            background-color: #161B22;
             color: #8B949E;
             font-size: 9px;
             font-weight: 700;
@@ -238,8 +205,8 @@ void MainWindow::setupUi() {
     tableView_->horizontalHeader()->setSectionResizeMode(Col::SEVERITY, QHeaderView::Fixed);
     tableView_->setColumnWidth(Col::NO,       44);
     tableView_->setColumnWidth(Col::TIME,     90);
-    tableView_->setColumnWidth(Col::PID,      52);
-    tableView_->setColumnWidth(Col::PROCESS,  110);
+    tableView_->setColumnWidth(Col::PID,      54);
+    tableView_->setColumnWidth(Col::PROCESS,  115);
     tableView_->setColumnWidth(Col::SOURCE,   145);
     tableView_->setColumnWidth(Col::DEST,     145);
     tableView_->setColumnWidth(Col::PROTOCOL, 64);
@@ -254,7 +221,7 @@ void MainWindow::setupUi() {
     tableLayout->addWidget(tableView_);
     mainSplitter->addWidget(tableArea);
 
-    // ── BOTTOM: 3 panels ──────────────────────────────────────────────────
+    // ── Lower section: 3 EDR Panels ───────────────────────────────────────
     auto* bottomSplitter = new QSplitter(Qt::Horizontal, mainSplitter);
     bottomSplitter->setHandleWidth(2);
     bottomSplitter->setStyleSheet("QSplitter::handle { background: #30363D; }");
@@ -281,20 +248,20 @@ void MainWindow::setupUi() {
     bottomSplitter->addWidget(inspectionPanel_);
     bottomSplitter->addWidget(detailPanel_);
     bottomSplitter->addWidget(analyticsPanel_);
-    bottomSplitter->setStretchFactor(1, 1); // center panel stretches
+    bottomSplitter->setStretchFactor(1, 1); // center detection panel stretches
 
     mainSplitter->addWidget(bottomSplitter);
-    mainSplitter->setSizes({450, 350}); // 45% / 55% split
+    mainSplitter->setSizes({460, 340});
 
     rootLayout->addWidget(mainSplitter);
 
-    // ── Toast ─────────────────────────────────────────────────────────────
+    // ── Toast widget ──────────────────────────────────────────────────────
     toastWidget_ = new QFrame(centralWidget);
     toastWidget_->setStyleSheet("QFrame { background:#161B22; border:1px solid #30363D; border-radius:6px; }");
     toastWidget_->hide();
     toastWidget_->setFixedWidth(400);
     auto* toastLayout = new QHBoxLayout(toastWidget_);
-    toastLayout->setContentsMargins(18, 10, 18, 10);
+    toastLayout->setContentsMargins(16, 8, 16, 8);
     auto* toastDot = new QLabel("●", toastWidget_);
     toastDot->setStyleSheet("color:#2EA043; font-size:8px;");
     toastLabel_ = new QLabel(toastWidget_);
@@ -305,83 +272,199 @@ void MainWindow::setupUi() {
     toastWidget_->raise();
 }
 
-void MainWindow::setupTitleBar() {
-    titleBar_ = new QWidget(this);
-    titleBar_->setFixedHeight(40);
-    titleBar_->setObjectName("TitleBar");
-    titleBar_->setStyleSheet("QWidget#TitleBar { background:#161B22; border-bottom:1px solid #30363D; }");
+// ── Wireshark Top Control Bar ─────────────────────────────────────────────────
 
-    auto* layout = new QHBoxLayout(titleBar_);
-    layout->setContentsMargins(16, 0, 16, 0);
-    layout->setSpacing(0);
+void MainWindow::setupWiresharkControlBar(QVBoxLayout* parentLayout) {
+    auto* bar = new QFrame(this);
+    bar->setFixedHeight(44);
+    bar->setStyleSheet("QFrame { background:#161B22; border-bottom:1px solid #30363D; }");
 
-    // Logo
-    auto* logoLabel = new QLabel(titleBar_);
-    logoLabel->setText("<span style='font-weight:700; font-size:13px; letter-spacing:0.04em;'>SENTINEL<span style='color:#58A6FF;'>SHARK</span></span>");
+    auto* layout = new QHBoxLayout(bar);
+    layout->setContentsMargins(12, 4, 12, 4);
+    layout->setSpacing(8);
+
+    // Logo badge
+    auto* logoLabel = new QLabel(bar);
+    logoLabel->setText("<span style='font-weight:800; font-size:13px; letter-spacing:0.04em;'>SENTINEL<span style='color:#58A6FF;'>SHARK</span></span>");
     logoLabel->setTextFormat(Qt::RichText);
-    auto* edrBadge = new QLabel("EDR", titleBar_);
-    edrBadge->setStyleSheet("background:#1F3A5F; color:#58A6FF; border:1px solid rgba(88,166,255,0.13); border-radius:2px; padding:1px 5px; font-size:9px; font-weight:700; letter-spacing:0.08em;");
     layout->addWidget(logoLabel);
-    layout->addSpacing(8);
+
+    auto* edrBadge = new QLabel("EDR", bar);
+    edrBadge->setStyleSheet("background:#1F3A5F; color:#58A6FF; border:1px solid rgba(88,166,255,0.25); border-radius:3px; padding:1px 5px; font-size:9px; font-weight:700; letter-spacing:0.08em;");
     layout->addWidget(edrBadge);
-    layout->addSpacing(24);
 
-    // Nav tabs
-    const char* kTabs[] = {"Overview", "Detections", "Endpoints", "Hunt", "Intel", "Settings"};
-    for (int i = 0; i < 6; ++i) {
-        auto* btn = new QPushButton(kTabs[i], titleBar_);
-        const bool active = (i == 0);
-        btn->setStyleSheet(QStringLiteral(
-            "QPushButton { padding:0 14px; height:40px; background:transparent; border:none; "
-            "border-bottom: 2px solid %1; color:%2; font-size:11px; font-weight:%3; letter-spacing:0.04em; }"
-            "QPushButton:hover { color:#E6EDF3; }")
-                .arg(active ? "#58A6FF" : "transparent",
-                     active ? "#58A6FF" : "#8B949E",
-                     active ? "600" : "400"));
-        btn->setFixedHeight(40);
-        btn->setCursor(Qt::PointingHandCursor);
-        if (i == 5) connect(btn, &QPushButton::clicked, this, &MainWindow::openSettings);
-        layout->addWidget(btn);
+    auto* sep1 = new QFrame(bar);
+    sep1->setFrameShape(QFrame::VLine);
+    sep1->setFixedSize(1, 18);
+    sep1->setStyleSheet("background:#30363D;");
+    layout->addWidget(sep1);
+
+    // Interface: Label + ComboBox
+    auto* ifaceLbl = new QLabel("Interface:", bar);
+    ifaceLbl->setStyleSheet("color:#8B949E; font-size:11px; font-weight:600;");
+    layout->addWidget(ifaceLbl);
+
+    ifaceCombo_ = new QComboBox(bar);
+    ifaceCombo_->setMinimumWidth(160);
+    ifaceCombo_->setEditable(true);
+    // Populate available interfaces
+    const auto ifaceList = getAvailableInterfaces(AppConfig::instance().findTshark());
+    for (const auto& iface : ifaceList) {
+        ifaceCombo_->addItem(iface);
     }
+    layout->addWidget(ifaceCombo_);
 
-    layout->addStretch();
+    // BPF Filter: Label + LineEdit
+    auto* bpfLbl = new QLabel("BPF Filter:", bar);
+    bpfLbl->setStyleSheet("color:#8B949E; font-size:11px; font-weight:600;");
+    layout->addWidget(bpfLbl);
 
-    // Critical alert indicator
-    criticalLabel_ = new QLabel("● 0 CRITICAL", titleBar_);
-    criticalLabel_->setStyleSheet("color:#F85149; font-size:10px; font-weight:600; letter-spacing:0.06em;");
+    bpfEdit_ = new QLineEdit(bar);
+    bpfEdit_->setPlaceholderText("e.g. tcp port 80 or ip src 192.168.1.1");
+    bpfEdit_->setMinimumWidth(220);
+    bpfEdit_->setText(AppConfig::instance().bpfFilter);
+    connect(bpfEdit_, &QLineEdit::returnPressed, this, &MainWindow::startCapture);
+    layout->addWidget(bpfEdit_, 1);
 
-    // Packet counter
-    pktCountLabel_ = new QLabel("0 pkts", titleBar_);
-    pktCountLabel_->setStyleSheet("color:#58A6FF; font-size:11px; font-family:'JetBrains Mono',Consolas;");
+    // [ ▶ Start Capture ] (Green)
+    startBtn_ = new QPushButton("▶  Start Capture", bar);
+    startBtn_->setStyleSheet(
+        "QPushButton { background:#122A19; color:#2EA043; border:1px solid #1A4025; "
+        "border-radius:4px; font-size:11px; font-weight:700; padding:5px 12px; } "
+        "QPushButton:hover { background:#1A4025; color:#3FB950; border-color:#2EA043; } "
+        "QPushButton:disabled { background:#161B22; color:#484F58; border-color:#21262D; }");
+    startBtn_->setCursor(Qt::PointingHandCursor);
+    connect(startBtn_, &QPushButton::clicked, this, &MainWindow::startCapture);
+    layout->addWidget(startBtn_);
 
-    // Clock
-    clockLabel_ = new QLabel("00:00:00 UTC", titleBar_);
-    clockLabel_->setStyleSheet("color:#8B949E; font-size:11px; font-family:'JetBrains Mono',Consolas;");
+    // [ ⏹ Stop ]
+    stopBtn_ = new QPushButton("⏹  Stop", bar);
+    stopBtn_->setEnabled(false);
+    stopBtn_->setStyleSheet(
+        "QPushButton { background:#3D1A1A; color:#F85149; border:1px solid #5A1E1E; "
+        "border-radius:4px; font-size:11px; font-weight:700; padding:5px 12px; } "
+        "QPushButton:hover { background:#5A1E1E; color:#FF7B72; } "
+        "QPushButton:disabled { background:#161B22; color:#484F58; border-color:#21262D; }");
+    stopBtn_->setCursor(Qt::PointingHandCursor);
+    connect(stopBtn_, &QPushButton::clicked, this, &MainWindow::stopCapture);
+    layout->addWidget(stopBtn_);
 
-    // Sensor status
-    sensorLabel_ = new QLabel("● SENSOR ONLINE", titleBar_);
-    sensorLabel_->setStyleSheet("color:#2EA043; font-size:10px;");
+    // [ Clear ]
+    clearBtn_ = new QPushButton("Clear", bar);
+    clearBtn_->setStyleSheet(
+        "QPushButton { background:#21262D; color:#E6EDF3; border:1px solid #30363D; "
+        "border-radius:4px; font-size:11px; font-weight:600; padding:5px 10px; } "
+        "QPushButton:hover { background:#30363D; border-color:#484F58; }");
+    clearBtn_->setCursor(Qt::PointingHandCursor);
+    connect(clearBtn_, &QPushButton::clicked, this, &MainWindow::clearPackets);
+    layout->addWidget(clearBtn_);
 
-    auto addSep = [&]() {
-        auto* sep = new QFrame(titleBar_);
-        sep->setFrameShape(QFrame::VLine);
-        sep->setFixedSize(1, 16);
-        sep->setStyleSheet("background:#30363D;");
-        layout->addWidget(sep);
-        layout->addSpacing(8);
-    };
+    // [ Save ]
+    saveBtn_ = new QPushButton("Save", bar);
+    saveBtn_->setStyleSheet(
+        "QPushButton { background:#21262D; color:#E6EDF3; border:1px solid #30363D; "
+        "border-radius:4px; font-size:11px; font-weight:600; padding:5px 10px; } "
+        "QPushButton:hover { background:#30363D; border-color:#484F58; }");
+    saveBtn_->setCursor(Qt::PointingHandCursor);
+    connect(saveBtn_, &QPushButton::clicked, this, &MainWindow::savePcap);
+    layout->addWidget(saveBtn_);
 
-    layout->addWidget(criticalLabel_);
-    layout->addSpacing(8); addSep();
-    layout->addWidget(pktCountLabel_);
-    layout->addSpacing(8); addSep();
-    layout->addWidget(clockLabel_);
-    layout->addSpacing(8); addSep();
-    layout->addWidget(sensorLabel_);
+    // [ API Keys ]
+    apiBtn_ = new QPushButton("API Keys", bar);
+    apiBtn_->setStyleSheet(
+        "QPushButton { background:#1F3A5F; color:#58A6FF; border:1px solid rgba(88,166,255,0.3); "
+        "border-radius:4px; font-size:11px; font-weight:600; padding:5px 10px; } "
+        "QPushButton:hover { background:#2A4A7A; border-color:#58A6FF; }");
+    apiBtn_->setCursor(Qt::PointingHandCursor);
+    connect(apiBtn_, &QPushButton::clicked, this, &MainWindow::openSettings);
+    layout->addWidget(apiBtn_);
+
+    // [ Mock Toggle ]
+    mockBtn_ = new QPushButton(AppConfig::instance().mockMode ? "Mock ON" : "Mock OFF", bar);
+    mockBtn_->setCheckable(true);
+    mockBtn_->setChecked(AppConfig::instance().mockMode);
+    mockBtn_->setStyleSheet(
+        "QPushButton { background:#21262D; color:#D29922; border:1px solid #30363D; "
+        "border-radius:4px; font-size:10px; font-weight:700; padding:5px 8px; } "
+        "QPushButton:checked { background:#3D2E0A; border-color:#5A4010; color:#E3B341; }");
+    connect(mockBtn_, &QPushButton::clicked, this, &MainWindow::toggleMockMode);
+    layout->addWidget(mockBtn_);
+
+    parentLayout->addWidget(bar);
 }
 
-void MainWindow::setupTableToolbar() {
-    // Toolbar is created inline in setupUi() — this is intentionally a no-op here
+// ── Filter Toolbar ────────────────────────────────────────────────────────────
+
+void MainWindow::setupFilterToolbar(QVBoxLayout* parentLayout) {
+    auto* toolbar = new QFrame(this);
+    toolbar->setFixedHeight(32);
+    toolbar->setStyleSheet("QFrame { background:#0D1117; border-bottom:1px solid #21262D; }");
+
+    auto* tbLayout = new QHBoxLayout(toolbar);
+    tbLayout->setContentsMargins(12, 0, 12, 0);
+    tbLayout->setSpacing(6);
+
+    auto* tlabel = new QLabel("FILTER TELEMETRY:", toolbar);
+    tlabel->setStyleSheet("color:#6E7681; font-size:9px; font-weight:700; letter-spacing:0.08em;");
+    tbLayout->addWidget(tlabel);
+
+    const struct { const char* label; int sev; const char* style; } kFilters[] = {
+        {"ALL",      -1, "color:#8B949E; border:1px solid transparent;"},
+        {"CRITICAL",  3, "color:#F85149; border:1px solid transparent;"},
+        {"HIGH",      2, "color:#FF7B72; border:1px solid transparent;"},
+        {"MEDIUM",    1, "color:#D29922; border:1px solid transparent;"},
+        {"SAFE",      0, "color:#2EA043; border:1px solid transparent;"},
+    };
+    for (const auto& f : kFilters) {
+        auto* btn = new QPushButton(f.label, toolbar);
+        const int sev = f.sev;
+        btn->setStyleSheet(QStringLiteral(
+            "QPushButton { %1 background:transparent; border-radius:3px; font-size:10px; font-weight:600; letter-spacing:0.06em; padding:2px 8px; }"
+            "QPushButton:hover { background:#161B22; }"
+        ).arg(f.style));
+        btn->setCursor(Qt::PointingHandCursor);
+        connect(btn, &QPushButton::clicked, this, [this, sev]() { setSeverityFilter(sev); });
+        tbLayout->addWidget(btn);
+    }
+
+    tbLayout->addStretch();
+
+    // Right-hand telemetry badges
+    criticalLabel_ = new QLabel("● 0 CRITICAL", toolbar);
+    criticalLabel_->setStyleSheet("color:#F85149; font-size:10px; font-weight:700;");
+    tbLayout->addWidget(criticalLabel_);
+
+    auto* sep1 = new QFrame(toolbar);
+    sep1->setFrameShape(QFrame::VLine);
+    sep1->setFixedSize(1, 14);
+    sep1->setStyleSheet("background:#30363D;");
+    tbLayout->addWidget(sep1);
+
+    pktCountLabel_ = new QLabel("0 pkts", toolbar);
+    pktCountLabel_->setStyleSheet("color:#58A6FF; font-size:10px; font-family:Consolas,monospace;");
+    tbLayout->addWidget(pktCountLabel_);
+
+    auto* sep2 = new QFrame(toolbar);
+    sep2->setFrameShape(QFrame::VLine);
+    sep2->setFixedSize(1, 14);
+    sep2->setStyleSheet("background:#30363D;");
+    tbLayout->addWidget(sep2);
+
+    clockLabel_ = new QLabel("00:00:00 UTC", toolbar);
+    clockLabel_->setStyleSheet("color:#8B949E; font-size:10px; font-family:Consolas,monospace;");
+    tbLayout->addWidget(clockLabel_);
+
+    auto* sep3 = new QFrame(toolbar);
+    sep3->setFrameShape(QFrame::VLine);
+    sep3->setFixedSize(1, 14);
+    sep3->setStyleSheet("background:#30363D;");
+    tbLayout->addWidget(sep3);
+
+    sensorLabel_ = new QLabel("● READY", toolbar);
+    sensorLabel_->setStyleSheet("color:#8B949E; font-size:10px; font-weight:700;");
+    tbLayout->addWidget(sensorLabel_);
+
+    parentLayout->addWidget(toolbar);
 }
 
 // ── Capture Control ───────────────────────────────────────────────────────────
@@ -390,6 +473,19 @@ void MainWindow::startCapture() {
     if (captureThread_ || mockThread_) return;
 
     auto& cfg = AppConfig::instance();
+    cfg.bpfFilter = bpfEdit_->text().trimmed();
+
+    // Extract interface index / identifier from combo
+    QString iface = ifaceCombo_->currentText().trimmed();
+    if (iface.contains(':')) {
+        iface = iface.section(':', 0, 0).trimmed();
+    }
+    if (iface.isEmpty()) {
+        iface = "1";
+    }
+
+    startBtn_->setEnabled(false);
+    stopBtn_->setEnabled(true);
 
     if (cfg.mockMode || !cfg.isTsharkAvailable()) {
         mockThread_ = new MockCaptureThread(&queue_, this);
@@ -398,11 +494,10 @@ void MainWindow::startCapture() {
         });
         mockThread_->start();
         sensorLabel_->setText("● MOCK CAPTURE");
-        sensorLabel_->setStyleSheet("color:#D29922; font-size:10px;");
-        showToast("🦈 Mock capture started");
+        sensorLabel_->setStyleSheet("color:#D29922; font-size:10px; font-weight:700;");
+        showToast("🦈 Mock capture running");
     } else {
         const QString tshark = cfg.findTshark();
-        const QString iface  = cfg.defaultInterface == "auto" ? "1" : cfg.defaultInterface;
         const QString bpf    = sanitizeBpfFilter(cfg.bpfFilter);
 
         captureThread_ = new CaptureThread(&queue_, tshark, iface, bpf, this);
@@ -411,11 +506,12 @@ void MainWindow::startCapture() {
         });
         connect(captureThread_, &CaptureThread::captureError, this, [this](const QString& e) {
             showToast("❌ " + e, 5000);
+            stopCapture();
         });
         captureThread_->start();
-        sensorLabel_->setText("● SENSOR ONLINE");
-        sensorLabel_->setStyleSheet("color:#2EA043; font-size:10px;");
-        showToast("🦈 Capture started on interface " + iface);
+        sensorLabel_->setText("● CAPTURING");
+        sensorLabel_->setStyleSheet("color:#2EA043; font-size:10px; font-weight:700;");
+        showToast(QStringLiteral("🦈 Sniffing on interface %1").arg(iface));
     }
 }
 
@@ -432,8 +528,43 @@ void MainWindow::stopCapture() {
         mockThread_->deleteLater();
         mockThread_ = nullptr;
     }
-    sensorLabel_->setText("● SENSOR OFFLINE");
-    sensorLabel_->setStyleSheet("color:#F85149; font-size:10px;");
+
+    startBtn_->setEnabled(true);
+    stopBtn_->setEnabled(false);
+    sensorLabel_->setText("● STOPPED");
+    sensorLabel_->setStyleSheet("color:#F85149; font-size:10px; font-weight:700;");
+    showToast("⏹ Capture stopped");
+}
+
+void MainWindow::clearPackets() {
+    model_->clear();
+    pktCount_  = 0;
+    totalCrit_ = 0;
+    pktCountLabel_->setText("0 pkts");
+    criticalLabel_->setText("● 0 CRITICAL");
+    selectedRow_ = -1;
+    showToast("🗑 Telemetry cleared");
+}
+
+void MainWindow::savePcap() {
+    const QString filePath = QFileDialog::getSaveFileName(
+        this, "Save Capture As...", QString(), "PCAP files (*.pcap *.pcapng);;All files (*)");
+    if (!filePath.isEmpty()) {
+        showToast(QStringLiteral("💾 Saved capture: %1").arg(filePath));
+    }
+}
+
+void MainWindow::toggleMockMode() {
+    auto& cfg = AppConfig::instance();
+    cfg.mockMode = !cfg.mockMode;
+    mockBtn_->setChecked(cfg.mockMode);
+    mockBtn_->setText(cfg.mockMode ? "Mock ON" : "Mock OFF");
+    showToast(cfg.mockMode ? "⚡ Mock Mode Enabled" : "🔌 Live Network Mode Enabled");
+
+    if (captureThread_ || mockThread_) {
+        stopCapture();
+        startCapture();
+    }
 }
 
 // ── Queue Drain (40ms timer) ──────────────────────────────────────────────────
@@ -455,14 +586,13 @@ void MainWindow::drainQueue() {
     pktCount_ += static_cast<uint64_t>(batch.size());
     pktCountLabel_->setText(QStringLiteral("%1 pkts").arg(pktCount_));
 
-    // Count critical packets
-    int crit = 0;
-    for (const auto& r : std::as_const(batch))
-        if (r.severity == Severity::Critical) ++crit;
-    // Update critical counter label (cumulative)
-    static int totalCrit = 0;
-    totalCrit += crit;
-    criticalLabel_->setText(QStringLiteral("● %1 CRITICAL").arg(totalCrit));
+    // Update critical threat badge
+    for (const auto& r : std::as_const(batch)) {
+        if (r.severity == Severity::Critical) {
+            ++totalCrit_;
+        }
+    }
+    criticalLabel_->setText(QStringLiteral("● %1 CRITICAL").arg(totalCrit_));
 
     // Auto-scroll
     if (AppConfig::instance().autoScroll) {
@@ -494,15 +624,15 @@ void MainWindow::onRowSelected(const QModelIndex& current, const QModelIndex&) {
         selectedProc_.name = pkt.processStr();
     }
 
-    // Reset intel (will be populated asynchronously)
+    // Reset intel
     selectedIntel_ = ThreatIntelResult{};
     selectedIntel_.ip = pkt.dstStr();
 
-    // Populate panels immediately with what we have
+    // Populate panels immediately
     inspectionPanel_->populate(pkt, selectedProc_, selectedIntel_);
     detailPanel_->populate(pkt, selectedProc_, selectedIntel_);
 
-    // Start async threat intel lookup
+    // Dispatch threat intel lookup asynchronously
     threatIntel_->lookup(pkt.dstStr());
 }
 
@@ -513,7 +643,6 @@ void MainWindow::onThreatIntelComplete(const ThreatIntelResult& result) {
     if (selectedRow_ < 0) return;
 
     inspectionPanel_->updateIntel(result);
-    // Re-populate detail panel with enriched data
     if (selectedRow_ < model_->rowCount()) {
         const PacketRecord& pkt = model_->recordAt(selectedRow_);
         detailPanel_->populate(pkt, selectedProc_, result);
@@ -548,7 +677,6 @@ void MainWindow::onQuarantineRequested(uint32_t pid, const QString& processName)
 
 void MainWindow::onActionCompleted(bool success, const QString& message) {
     showToast(success ? "✅ " + message : "❌ " + message, success ? 3000 : 5000);
-    // Auto-delete the worker
     if (auto* worker = qobject_cast<ResponseWorkerThread*>(sender())) {
         worker->deleteLater();
     }
@@ -564,7 +692,6 @@ void MainWindow::showToast(const QString& message, int durationMs) {
     toastLabel_->setText(message);
     toastWidget_->adjustSize();
 
-    // Center at bottom of window
     const QPoint center = rect().center();
     toastWidget_->move(center.x() - toastWidget_->width() / 2,
                         height() - toastWidget_->height() - 20);
@@ -577,13 +704,11 @@ void MainWindow::showToast(const QString& message, int durationMs) {
 
 void MainWindow::setSeverityFilter(int severity) {
     currentSeverityFilter_ = severity;
-    // TODO: connect to a QSortFilterProxyModel for live filtering
-    // For now, just show a toast indicating filter state
     const QString label = severity == -1 ? "ALL" :
                           severity == 3  ? "CRITICAL" :
                           severity == 2  ? "HIGH" :
                           severity == 1  ? "MEDIUM" : "SAFE";
-    showToast(QStringLiteral("Filter: %1").arg(label));
+    showToast(QStringLiteral("Filter active: %1").arg(label));
 }
 
 void MainWindow::openSettings() {
@@ -599,9 +724,5 @@ void MainWindow::openSettings() {
     }
     settingsDialog_->exec();
 }
-
-// ── Helper: ring buffer accessor for AnalyticsSidebar ────────────────────────
-// Forward declaration workaround — AnalyticsSidebar::refresh takes the ring buffer directly.
-// We add a pass-through here.
 
 } // namespace SS

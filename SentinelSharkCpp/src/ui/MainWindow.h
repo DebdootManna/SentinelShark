@@ -5,7 +5,10 @@
 #include <QSplitter>
 #include <QTableView>
 #include <QComboBox>
+#include <QLineEdit>
 #include <QPushButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <memory>
 #include "../core/PacketRecord.h"
 #include "../core/BoundedQueue.h"
@@ -22,10 +25,15 @@ class ThreatIntelWorker;
 class CaptureThread;
 class MockCaptureThread;
 class SettingsDialog;
+class InterfaceSelectionDialog;
 
-/// The application main window — 3-panel SOC workstation layout.
-/// Implements the exact App.tsx design:
-///   TitleBar | [Table] | [InspectionPanel | DetectionDetailPanel | AnalyticsSidebar]
+/// The application main window — Wireshark on top, SecOps/EDR on the bottom.
+/// 
+/// Top: Wireshark Control Bar
+///   [Interface: combo] [BPF Filter: edit] [▶ Start Capture] [⏹ Stop] [Clear] [Save] [API Keys]
+/// Upper: High-performance QTableView (PacketTableModel)
+/// Lower: 3-Panel Incident Response Layout:
+///   [Host & Process Forensics] [Detection Detail & IR Actions] [Live Analytics & Stats]
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -36,6 +44,9 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private slots:
+    // Startup prompt
+    void promptInterfaceSelection();
+
     // Packet queue drain — called by drainTimer_ every 40ms
     void drainQueue();
 
@@ -56,9 +67,12 @@ private slots:
     // Response result
     void onActionCompleted(bool success, const QString& message);
 
-    // Capture control
+    // Capture control (Wireshark-style)
     void startCapture();
     void stopCapture();
+    void clearPackets();
+    void savePcap();
+    void toggleMockMode();
 
     // Toast
     void showToast(const QString& message, int durationMs = 3000);
@@ -74,11 +88,9 @@ private slots:
 
 private:
     void setupUi();
-    void setupTitleBar();
-    void setupTableToolbar();
-    void applyStyleSheet();
-    void connectCapture();
-    void disconnectCapture();
+    void setupWiresharkControlBar(QVBoxLayout* parentLayout);
+    void setupFilterToolbar(QVBoxLayout* parentLayout);
+    void setupStatusBar();
 
     // ── Bounded queue (shared with capture thread) ─────────────────────────
     BoundedQueue<PacketRecord, 300> queue_;
@@ -92,8 +104,17 @@ private:
     QTimer* clockTimer_     = nullptr;  // 1s   — updates live clock
     QTimer* toastTimer_     = nullptr;  // dismisses toast
 
-    // ── UI widgets ─────────────────────────────────────────────────────────
-    QWidget*             titleBar_        = nullptr;
+    // ── Wireshark Top Control Bar Widgets ──────────────────────────────────
+    QComboBox*           ifaceCombo_      = nullptr;
+    QLineEdit*           bpfEdit_         = nullptr;
+    QPushButton*         startBtn_        = nullptr;
+    QPushButton*         stopBtn_         = nullptr;
+    QPushButton*         clearBtn_        = nullptr;
+    QPushButton*         saveBtn_         = nullptr;
+    QPushButton*         apiBtn_          = nullptr;
+    QPushButton*         mockBtn_         = nullptr;
+
+    // ── Status Bar / Counters ──────────────────────────────────────────────
     QLabel*              pktCountLabel_   = nullptr;
     QLabel*              clockLabel_      = nullptr;
     QLabel*              criticalLabel_   = nullptr;
@@ -101,9 +122,6 @@ private:
     QWidget*             toastWidget_     = nullptr;
     QLabel*              toastLabel_      = nullptr;
     QTableView*          tableView_       = nullptr;
-    QComboBox*           ifaceCombo_      = nullptr;
-    QPushButton*         startBtn_        = nullptr;
-    QPushButton*         stopBtn_         = nullptr;
 
     // ── Panels ─────────────────────────────────────────────────────────────
     InspectionPanel*     inspectionPanel_  = nullptr;
@@ -117,12 +135,13 @@ private:
     SettingsDialog*      settingsDialog_   = nullptr;
 
     // ── State ──────────────────────────────────────────────────────────────
-    int     currentSeverityFilter_ = -1;  // -1 = all
-    int     selectedRow_           = -1;
+    int      currentSeverityFilter_ = -1;  // -1 = all
+    int      selectedRow_           = -1;
     uint64_t pktCount_             = 0;
+    int      totalCrit_             = 0;
 
     // Cached data for selected row
-    ProcessInfo      selectedProc_;
+    ProcessInfo       selectedProc_;
     ThreatIntelResult selectedIntel_;
 };
 

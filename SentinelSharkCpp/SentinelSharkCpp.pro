@@ -31,6 +31,7 @@ HEADERS += \
     src/ui/DetectionDetailPanel.h \
     src/ui/InspectionPanel.h \
     src/ui/SettingsDialog.h \
+    src/ui/InterfaceSelectionDialog.h \
     src/ui/MainWindow.h
 
 SOURCES += \
@@ -51,6 +52,7 @@ SOURCES += \
     src/ui/DetectionDetailPanel.cpp \
     src/ui/InspectionPanel.cpp \
     src/ui/SettingsDialog.cpp \
+    src/ui/InterfaceSelectionDialog.cpp \
     src/ui/MainWindow.cpp
 
 RESOURCES += \
