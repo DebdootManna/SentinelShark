@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SentinelShark VERSION 2.0.0 LANGUAGES C CXX)
+project(SentinelShark VERSION 2.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -122,3 +122,14 @@ install(TARGETS SentinelShark
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+# Automated Qt DLL deployment pipeline (windeployqt)
+find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt windeployqt.exe HINTS ${Qt6_DIR}/../../../bin)
+if(WINDEPLOYQT_EXECUTABLE)
+    message(STATUS "Found windeployqt: ${WINDEPLOYQT_EXECUTABLE}")
+    add_custom_command(TARGET SentinelShark POST_BUILD
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+        ARGS --no-compiler-runtime --no-translations "$<TARGET_FILE:SentinelShark>"
+        COMMENT "Running windeployqt to bundle DLLs..."
+    )
+endif()

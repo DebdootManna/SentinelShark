@@ -91,6 +91,7 @@ private:
     void setupWiresharkControlBar(QVBoxLayout* parentLayout);
     void setupFilterToolbar(QVBoxLayout* parentLayout);
     void setupStatusBar();
+    void checkTsharkDependency();
 
     // ── Bounded queue (shared with capture thread) ─────────────────────────
     BoundedQueue<PacketRecord, 300> queue_;
@@ -119,6 +120,8 @@ private:
     QLabel*              clockLabel_      = nullptr;
     QLabel*              criticalLabel_   = nullptr;
     QLabel*              sensorLabel_     = nullptr;
+    QLabel*              tsharkStatusLabel_ = nullptr;
+    QLabel*              captureStatusLabel_ = nullptr;
     QWidget*             toastWidget_     = nullptr;
     QLabel*              toastLabel_      = nullptr;
     QTableView*          tableView_       = nullptr;

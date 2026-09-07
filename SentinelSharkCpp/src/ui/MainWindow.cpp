@@ -88,7 +88,9 @@ MainWindow::MainWindow(QWidget* parent)
     SocketPollThread::instance().start();
 
     // ── Automatic Interface Selection Dialog on Startup (Wireshark-style) ─
-    QTimer::singleShot(250, this, &MainWindow::promptInterfaceSelection);
+    if (AppConfig::instance().isTsharkAvailable() && !AppConfig::instance().mockMode) {
+        QTimer::singleShot(250, this, &MainWindow::promptInterfaceSelection);
+    }
 }
 
 MainWindow::~MainWindow() {
@@ -105,7 +107,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 // ── Interface Selection Prompt (Wireshark Workflow) ───────────────────────────
 
 void MainWindow::promptInterfaceSelection() {
-    // If already running, skip
+    // If live capture is impossible or already running, skip
+    if (!AppConfig::instance().isTsharkAvailable() || AppConfig::instance().mockMode) return;
     if (captureThread_ || mockThread_) return;
 
     InterfaceSelectionDialog dlg(ifaceCombo_->currentText(), this);
@@ -270,6 +273,50 @@ void MainWindow::setupUi() {
     toastLayout->addWidget(toastLabel_);
     toastWidget_->setParent(centralWidget);
     toastWidget_->raise();
+
+    // ── Status Bar ────────────────────────────────────────────────────────
+    setupStatusBar();
+}
+
+// ── Status Bar Setup & TShark Dependency Verification ─────────────────────────
+
+void MainWindow::setupStatusBar() {
+    auto* bar = statusBar();
+    bar->setStyleSheet(
+        "QStatusBar { background:#0D1117; color:#8B949E; border-top:1px solid #21262D; font-size:11px; } "
+        "QStatusBar::item { border:none; }"
+    );
+
+    captureStatusLabel_ = new QLabel("  Capture Status: Idle  ", this);
+    captureStatusLabel_->setStyleSheet("color:#8B949E; font-size:11px; font-weight:500;");
+    bar->addWidget(captureStatusLabel_);
+
+    tsharkStatusLabel_ = new QLabel(this);
+    bar->addPermanentWidget(tsharkStatusLabel_);
+
+    checkTsharkDependency();
+}
+
+void MainWindow::checkTsharkDependency() {
+    auto& cfg = AppConfig::instance();
+    const QString tsharkPath = cfg.findTshark();
+
+    if (!tsharkPath.isEmpty()) {
+        tsharkStatusLabel_->setText(QStringLiteral("  TShark: Available (%1)  ").arg(tsharkPath));
+        tsharkStatusLabel_->setStyleSheet("color: #34D399; font-weight: 700; font-size: 11px; padding-right: 12px;");
+        if (startBtn_) startBtn_->setEnabled(true);
+    } else {
+        tsharkStatusLabel_->setText("  TShark: Not Found. Running in Mock Mode.  ");
+        tsharkStatusLabel_->setStyleSheet("color: #FBBF24; font-weight: 700; font-size: 11px; padding-right: 12px;");
+
+        // Automatically toggle the "Mock Mode" internal state to true
+        cfg.mockMode = true;
+        if (mockBtn_) {
+            mockBtn_->setChecked(true);
+            mockBtn_->setText("Mock ON");
+        }
+        if (startBtn_) startBtn_->setEnabled(true);
+    }
 }
 
 // ── Wireshark Top Control Bar ─────────────────────────────────────────────────
@@ -495,18 +542,21 @@ void MainWindow::startCapture() {
     if (cfg.mockMode || !cfg.isTsharkAvailable()) {
         mockThread_ = new MockCaptureThread(&queue_, nullptr);
         connect(mockThread_, &MockCaptureThread::statusChanged, this, [this](const QString& s) {
+            if (captureStatusLabel_) captureStatusLabel_->setText(QStringLiteral("  Capture Status: %1  ").arg(s));
             statusBar()->showMessage(s);
         });
         mockThread_->start();
         sensorLabel_->setText("● MOCK CAPTURE");
         sensorLabel_->setStyleSheet("color:#D29922; font-size:10px; font-weight:700;");
-        showToast("🦈 Mock capture running");
+        if (captureStatusLabel_) captureStatusLabel_->setText("  Capture Status: Mock Capture Running  ");
+        showToast("⚡ Mock capture running");
     } else {
         const QString tshark = cfg.findTshark();
         const QString bpf    = sanitizeBpfFilter(cfg.bpfFilter);
 
         captureThread_ = new CaptureThread(&queue_, tshark, iface, bpf, nullptr);
         connect(captureThread_, &CaptureThread::statusChanged, this, [this](const QString& s) {
+            if (captureStatusLabel_) captureStatusLabel_->setText(QStringLiteral("  Capture Status: %1  ").arg(s));
             statusBar()->showMessage(s);
         });
         connect(captureThread_, &CaptureThread::captureError, this, [this](const QString& e) {
@@ -516,6 +566,7 @@ void MainWindow::startCapture() {
         captureThread_->start();
         sensorLabel_->setText("● CAPTURING");
         sensorLabel_->setStyleSheet("color:#2EA043; font-size:10px; font-weight:700;");
+        if (captureStatusLabel_) captureStatusLabel_->setText(QStringLiteral("  Capture Status: Sniffing on %1  ").arg(iface));
         showToast(QStringLiteral("🦈 Sniffing on interface %1").arg(iface));
     }
 }
@@ -577,6 +628,7 @@ void MainWindow::stopCapture() {
     stopBtn_->setEnabled(false);
     sensorLabel_->setText("● STOPPED");
     sensorLabel_->setStyleSheet("color:#F85149; font-size:10px; font-weight:700;");
+    if (captureStatusLabel_) captureStatusLabel_->setText("  Capture Status: Stopped  ");
     showToast("⏹ Capture stopped");
 }
 
@@ -616,6 +668,8 @@ void MainWindow::toggleMockMode() {
     mockBtn_->setChecked(cfg.mockMode);
     mockBtn_->setText(cfg.mockMode ? "Mock ON" : "Mock OFF");
     showToast(cfg.mockMode ? "⚡ Mock Mode Enabled" : "🔌 Live Network Mode Enabled");
+
+    checkTsharkDependency();
 
     if (captureThread_ || mockThread_) {
         stopCapture();
