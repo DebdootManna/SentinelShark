@@ -89,3 +89,6 @@ distv2/
 *.user
 *.suo
 *.userprefs
+
+# Downloaded CMake and Qt toolchains
+/SentinelSharkCpp/.tools/
