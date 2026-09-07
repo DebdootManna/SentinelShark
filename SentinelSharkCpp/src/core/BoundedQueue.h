@@ -1,70 +1,96 @@
 #pragma once
-#include <atomic>
+#include <mutex>
 #include <array>
 #include <cstddef>
-#include <optional>
+#include <utility>
 
 namespace SS {
 
-/// Single-Producer Single-Consumer bounded lock-free queue.
-/// try_push() returns false (packet dropped) when full — NEVER blocks.
-/// try_pop()  returns false when empty.
-/// The Capacity+1 trick avoids the ABA problem with head==tail disambiguation.
+/// Thread-safe bounded queue strictly protected by std::mutex.
+/// try_push() drops the packet and returns false when full (drop-tail, never blocks).
+/// try_pop() returns false when empty.
+/// clear() empties the queue under lock.
+/// mutex() exposes the underlying std::mutex for explicit lock_guard scoping.
 template<typename T, size_t Capacity>
 class BoundedQueue {
     static_assert(Capacity > 0, "BoundedQueue capacity must be > 0");
-    static constexpr size_t kSize = Capacity + 1; // one slot wasted to disambiguate full vs empty
+    static constexpr size_t kSize = Capacity + 1; // disambiguate full vs empty
 
 public:
     BoundedQueue() noexcept
         : head_(0), tail_(0) {}
 
     /// Producer side: push item. Returns false and DROPS the item if queue is full.
-    bool try_push(const T& item) noexcept {
-        const size_t head = head_.load(std::memory_order_relaxed);
-        const size_t next = (head + 1) % kSize;
-        if (next == tail_.load(std::memory_order_acquire))
+    bool try_push(const T& item) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const size_t next = (head_ + 1) % kSize;
+        if (next == tail_)
             return false; // full — drop the packet
-        buf_[head] = item;
-        head_.store(next, std::memory_order_release);
+        buf_[head_] = item;
+        head_ = next;
         return true;
     }
 
-    [[nodiscard]] bool try_push(T&& item) noexcept {
-        const size_t head = head_.load(std::memory_order_relaxed);
-        const size_t next = (head + 1) % kSize;
-        if (next == tail_.load(std::memory_order_acquire))
+    [[nodiscard]] bool try_push(T&& item) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const size_t next = (head_ + 1) % kSize;
+        if (next == tail_)
             return false;
-        buf_[head] = std::move(item);
-        head_.store(next, std::memory_order_release);
+        buf_[head_] = std::move(item);
+        head_ = next;
         return true;
     }
 
-    /// Consumer side: pop item into out. Returns false if empty.
-    [[nodiscard]] bool try_pop(T& out) noexcept {
-        const size_t tail = tail_.load(std::memory_order_relaxed);
-        if (tail == head_.load(std::memory_order_acquire))
-            return false; // empty
-        out = std::move(buf_[tail]);
-        tail_.store((tail + 1) % kSize, std::memory_order_release);
-        return true;
+    /// Consumer side: pop item into out under lock. Returns false if empty.
+    [[nodiscard]] bool try_pop(T& out) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return try_pop_internal(out);
     }
 
-    bool empty() const noexcept {
-        return tail_.load(std::memory_order_acquire) ==
-               head_.load(std::memory_order_acquire);
+    /// Pop without internal lock — caller MUST hold mutex().
+    [[nodiscard]] bool try_pop_unlocked(T& out) noexcept {
+        return try_pop_internal(out);
     }
 
-    size_t approx_size() const noexcept {
-        const size_t h = head_.load(std::memory_order_relaxed);
-        const size_t t = tail_.load(std::memory_order_relaxed);
-        return (h >= t) ? (h - t) : (kSize - t + h);
+    /// Empty the queue under lock.
+    void clear() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        clear_unlocked();
+    }
+
+    /// Empty the queue without internal lock — caller MUST hold mutex().
+    void clear_unlocked() noexcept {
+        head_ = 0;
+        tail_ = 0;
+    }
+
+    bool empty() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return tail_ == head_;
+    }
+
+    size_t approx_size() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return (head_ >= tail_) ? (head_ - tail_) : (kSize - tail_ + head_);
+    }
+
+    /// Expose mutex for external synchronization (e.g., in Stop or Clear routines).
+    std::mutex& mutex() noexcept {
+        return mutex_;
     }
 
 private:
-    // Cache-line padding to prevent false sharing between producer and consumer
-    alignas(64) std::atomic<size_t> head_;
-    alignas(64) std::atomic<size_t> tail_;
+    bool try_pop_internal(T& out) noexcept {
+        if (tail_ == head_)
+            return false; // empty
+        out = std::move(buf_[tail_]);
+        tail_ = (tail_ + 1) % kSize;
+        return true;
+    }
+
+    mutable std::mutex mutex_;
+    size_t head_{0};
+    size_t tail_{0};
     std::array<T, kSize> buf_;
 };
 

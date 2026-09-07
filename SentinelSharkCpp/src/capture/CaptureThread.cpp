@@ -42,7 +42,7 @@ static uint32_t jU32(const json& j, const std::string& key, uint32_t def = 0) {
     return def;
 }
 
-// ── Construction ──────────────────────────────────────────────────────────────
+// ── Construction & Destruction ────────────────────────────────────────────────
 
 CaptureThread::CaptureThread(BoundedQueue<PacketRecord, 300>* queue,
                                const QString& tsharkPath,
@@ -58,14 +58,44 @@ CaptureThread::CaptureThread(BoundedQueue<PacketRecord, 300>* queue,
     setObjectName(QStringLiteral("CaptureThread"));
 }
 
+CaptureThread::~CaptureThread() {
+    stop();
+    if (isRunning()) {
+        quit();
+        wait();
+    }
+}
+
+void CaptureThread::teardownProcess() {
+    std::lock_guard<std::mutex> lock(procMutex_);
+    if (tsharkProcess_ && tsharkProcess_->state() != QProcess::NotRunning) {
+        // 1. Disconnect all signals so readyReadStandardOutput doesn't fire during teardown
+        tsharkProcess_->disconnect();
+
+        // 2. Ask it to terminate gracefully, then kill if it refuses
+        tsharkProcess_->terminate();
+        if (!tsharkProcess_->waitForFinished(500)) {
+            tsharkProcess_->kill();
+            tsharkProcess_->waitForFinished(500);
+        }
+
+        // 3. Safely schedule deletion
+        tsharkProcess_->deleteLater();
+        tsharkProcess_ = nullptr;
+    } else {
+        tsharkProcess_ = nullptr;
+    }
+}
+
 void CaptureThread::stop() {
-    running_.store(false, std::memory_order_relaxed);
+    isCapturing_.store(false, std::memory_order_release);
+    teardownProcess();
 }
 
 // ── Thread entry point ────────────────────────────────────────────────────────
 
 void CaptureThread::run() {
-    running_.store(true, std::memory_order_relaxed);
+    isCapturing_.store(true, std::memory_order_release);
 
     // Build tshark arguments
     // -T json -l : line-buffered JSON output (one object per line when used with -l)
@@ -80,32 +110,39 @@ void CaptureThread::run() {
     if (!bpfFilter_.isEmpty())
         args << "-f" << bpfFilter_;
 
-    QProcess proc;
-    proc.setProgram(tsharkPath_);
-    proc.setArguments(args);
-    proc.setReadChannel(QProcess::StandardOutput);
+    auto proc = std::make_unique<QProcess>();
+    proc->setProgram(tsharkPath_);
+    proc->setArguments(args);
+    proc->setReadChannel(QProcess::StandardOutput);
+
+    {
+        std::lock_guard<std::mutex> lock(procMutex_);
+        tsharkProcess_ = proc.get();
+    }
 
     emit statusChanged(QStringLiteral("Starting tshark on interface %1…").arg(iface_));
-    proc.start();
+    proc->start();
 
-    if (!proc.waitForStarted(5000)) {
-        emit captureError(QStringLiteral("Failed to start tshark: %1").arg(proc.errorString()));
+    if (!proc->waitForStarted(5000)) {
+        emit captureError(QStringLiteral("Failed to start tshark: %1").arg(proc->errorString()));
+        std::lock_guard<std::mutex> lock(procMutex_);
+        tsharkProcess_ = nullptr;
         return;
     }
     emit statusChanged(QStringLiteral("Capturing on %1").arg(iface_));
 
     // tshark -T json -l outputs each packet as a standalone JSON object per line.
-    // However, it may also output a JSON array [ { ... }, { ... } ].
-    // We use brace counting to robustly extract complete JSON objects.
     QByteArray pending;
 
-    while (running_.load(std::memory_order_relaxed) &&
-           (proc.state() != QProcess::NotRunning || proc.canReadLine()))
-    {
-        // Wait up to 100ms for data
-        if (!proc.waitForReadyRead(100)) continue;
+    while (isCapturing_.load(std::memory_order_acquire)) {
+        if (!proc || proc->state() == QProcess::NotRunning) {
+            if (!proc || !proc->canReadLine()) break;
+        }
 
-        pending += proc.readAllStandardOutput();
+        // Wait up to 50ms for data
+        if (!proc->waitForReadyRead(50)) continue;
+
+        pending += proc->readAllStandardOutput();
 
         // Extract complete JSON objects using brace depth counting
         int depth = 0;
@@ -142,13 +179,28 @@ void CaptureThread::run() {
             pending.clear();
     }
 
-    proc.terminate();
-    proc.waitForFinished(3000);
+    const bool wasUnexpected = isCapturing_.load(std::memory_order_acquire);
 
-    if (running_.load(std::memory_order_relaxed)) {
-        // Unexpected termination
-        emit captureError(QStringLiteral("tshark exited unexpectedly: %1")
-                              .arg(QString::fromLocal8Bit(proc.readAllStandardError())));
+    // Graceful QProcess / TShark Teardown sequence
+    {
+        std::lock_guard<std::mutex> lock(procMutex_);
+        if (tsharkProcess_ && tsharkProcess_->state() != QProcess::NotRunning) {
+            tsharkProcess_->disconnect();
+            tsharkProcess_->terminate();
+            if (!tsharkProcess_->waitForFinished(500)) {
+                tsharkProcess_->kill();
+                tsharkProcess_->waitForFinished(500);
+            }
+            tsharkProcess_->deleteLater();
+            proc.release(); // ownership transferred to Qt deleteLater
+            tsharkProcess_ = nullptr;
+        } else {
+            tsharkProcess_ = nullptr;
+        }
+    }
+
+    if (wasUnexpected) {
+        emit captureError(QStringLiteral("tshark exited unexpectedly"));
     } else {
         emit statusChanged(QStringLiteral("Capture stopped"));
     }

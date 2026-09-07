@@ -140,32 +140,20 @@ void PacketTableModel::addPackets(const QVector<PacketRecord>& packets) {
     const int maxCap   = static_cast<int>(kCapacity);
     const int incoming = packets.size();
 
-    // How many rows will the ring buffer have after insertion?
-    // If already at capacity, oldest rows get evicted — we must remove them from the model first.
-    if (buf_.full()) {
-        // Rows will be evicted from the front (oldest).
-        // We evict at most min(incoming, maxCap) rows.
-        const int evict = qMin(incoming, maxCap);
-        beginRemoveRows({}, 0, evict - 1);
-        for (int i = 0; i < evict; ++i)
-            buf_.push_back(packets[i]); // push_back already overwrites oldest
-        endRemoveRows();
-
-        // Now insert the remaining packets normally (if incoming > maxCap, all old were already replaced)
-        const int remaining = incoming - evict;
-        if (remaining > 0) {
-            beginInsertRows({}, buf_.size(), buf_.size() + remaining - 1);
-            for (int i = evict; i < incoming; ++i)
-                buf_.push_back(packets[i]);
-            endInsertRows();
-        }
-    } else {
-        // Buffer not yet full — simple append
-        const int newSize = qMin(oldSize + incoming, maxCap);
-        beginInsertRows({}, oldSize, newSize - 1);
-        for (const auto& pkt : packets)
+    if (oldSize + incoming <= maxCap) {
+        // Buffer has room: simple append
+        beginInsertRows({}, oldSize, oldSize + incoming - 1);
+        for (const auto& pkt : packets) {
             buf_.push_back(pkt);
+        }
         endInsertRows();
+    } else {
+        // Buffer will wrap/evict oldest rows: safely reset model mapping
+        beginResetModel();
+        for (const auto& pkt : packets) {
+            buf_.push_back(pkt);
+        }
+        endResetModel();
     }
 
     totalReceived_ += static_cast<uint64_t>(incoming);

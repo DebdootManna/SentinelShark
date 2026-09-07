@@ -26,6 +26,7 @@ class MockCaptureThread : public QThread {
 public:
     explicit MockCaptureThread(BoundedQueue<PacketRecord, 300>* queue,
                                 QObject* parent = nullptr);
+    ~MockCaptureThread() override;
 
     void stop();
 
@@ -37,7 +38,7 @@ protected:
 
 private:
     BoundedQueue<PacketRecord, 300>* queue_;
-    std::atomic<bool>                running_{false};
+    std::atomic<bool>                isCapturing_{false};
     std::atomic<uint32_t>            counter_{0};
 };
 

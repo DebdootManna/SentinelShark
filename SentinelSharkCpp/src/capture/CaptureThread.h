@@ -2,9 +2,12 @@
 #include <QThread>
 #include <QString>
 #include <atomic>
+#include <mutex>
 #include <cstdint>
 #include "../core/PacketRecord.h"
 #include "../core/BoundedQueue.h"
+
+class QProcess;
 
 namespace SS {
 
@@ -19,6 +22,7 @@ public:
                            const QString& iface,
                            const QString& bpfFilter,
                            QObject* parent = nullptr);
+    ~CaptureThread() override;
 
     void stop();
 
@@ -35,6 +39,8 @@ protected:
     void run() override;
 
 private:
+    void teardownProcess();
+
     /// Parse one JSON object from tshark's -T json output.
     /// Returns true and populates rec if successful.
     bool parseTsharkPacket(const QByteArray& jsonData, PacketRecord& rec);
@@ -51,8 +57,11 @@ private:
     QString                          tsharkPath_;
     QString                          iface_;
     QString                          bpfFilter_;
-    std::atomic<bool>                running_{false};
+    std::atomic<bool>                isCapturing_{false};
     std::atomic<uint64_t>            packetCount_{0};
+
+    mutable std::mutex               procMutex_;
+    QProcess*                        tsharkProcess_{nullptr};
 };
 
 } // namespace SS

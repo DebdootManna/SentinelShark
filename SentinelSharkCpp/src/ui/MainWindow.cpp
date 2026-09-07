@@ -60,7 +60,7 @@ MainWindow::MainWindow(QWidget* parent)
     drainTimer_ = new QTimer(this);
     drainTimer_->setInterval(40); // 25 FPS
     connect(drainTimer_, &QTimer::timeout, this, &MainWindow::drainQueue);
-    drainTimer_->start();
+    // drainTimer_ will be started when capture starts, stopped when capture stops
 
     analyticsTimer_ = new QTimer(this);
     analyticsTimer_->setInterval(5000);
@@ -484,11 +484,16 @@ void MainWindow::startCapture() {
         iface = "1";
     }
 
+    // 1. Start drain timer if not already active
+    if (drainTimer_ && !drainTimer_->isActive()) {
+        drainTimer_->start();
+    }
+
     startBtn_->setEnabled(false);
     stopBtn_->setEnabled(true);
 
     if (cfg.mockMode || !cfg.isTsharkAvailable()) {
-        mockThread_ = new MockCaptureThread(&queue_, this);
+        mockThread_ = new MockCaptureThread(&queue_, nullptr);
         connect(mockThread_, &MockCaptureThread::statusChanged, this, [this](const QString& s) {
             statusBar()->showMessage(s);
         });
@@ -500,7 +505,7 @@ void MainWindow::startCapture() {
         const QString tshark = cfg.findTshark();
         const QString bpf    = sanitizeBpfFilter(cfg.bpfFilter);
 
-        captureThread_ = new CaptureThread(&queue_, tshark, iface, bpf, this);
+        captureThread_ = new CaptureThread(&queue_, tshark, iface, bpf, nullptr);
         connect(captureThread_, &CaptureThread::statusChanged, this, [this](const QString& s) {
             statusBar()->showMessage(s);
         });
@@ -516,17 +521,56 @@ void MainWindow::startCapture() {
 }
 
 void MainWindow::stopCapture() {
+    // Prevent recursive stop calls (e.g. from error signals during shutdown)
+    static std::atomic<bool> inStop{false};
+    bool expected = false;
+    if (!inStop.compare_exchange_strong(expected, true)) {
+        return;
+    }
+    struct StopGuard {
+        std::atomic<bool>& flag;
+        ~StopGuard() { flag.store(false); }
+    } guard{inStop};
+
+    // 1. Safely Stop the UI Consumer FIRST
+    if (drainTimer_ && drainTimer_->isActive()) {
+        drainTimer_->stop();
+    }
+
+    // 2 & 3. Thread-Safe Worker & QProcess Shutdown
     if (captureThread_) {
+        // Disconnect all signals so no callbacks fire into MainWindow during teardown
+        captureThread_->disconnect();
         captureThread_->stop();
-        captureThread_->wait(3000);
-        captureThread_->deleteLater();
+        captureThread_->quit();
+        captureThread_->wait();
+        delete captureThread_;
         captureThread_ = nullptr;
     }
+
     if (mockThread_) {
+        mockThread_->disconnect();
         mockThread_->stop();
-        mockThread_->wait(3000);
-        mockThread_->deleteLater();
+        mockThread_->quit();
+        mockThread_->wait();
+        delete mockThread_;
         mockThread_ = nullptr;
+    }
+
+    // 4. Protect the Packet Queue (Mutex / Lock)
+    {
+        std::lock_guard<std::mutex> lock(queue_.mutex());
+        // Drain any remaining in-flight packets safely while threads are stopped
+        PacketRecord rec;
+        QVector<PacketRecord> remaining;
+        while (queue_.try_pop_unlocked(rec)) {
+            remaining.append(rec);
+        }
+        if (!remaining.isEmpty()) {
+            model_->addPackets(remaining);
+            pktCount_ += static_cast<uint64_t>(remaining.size());
+            pktCountLabel_->setText(QStringLiteral("%1 pkts").arg(pktCount_));
+        }
     }
 
     startBtn_->setEnabled(true);
@@ -537,6 +581,16 @@ void MainWindow::stopCapture() {
 }
 
 void MainWindow::clearPackets() {
+    // Safely pause timer if it happens to be running
+    const bool wasActive = drainTimer_ && drainTimer_->isActive();
+    if (wasActive) drainTimer_->stop();
+
+    // Protect queue with mutex
+    {
+        std::lock_guard<std::mutex> lock(queue_.mutex());
+        queue_.clear_unlocked();
+    }
+
     model_->clear();
     pktCount_  = 0;
     totalCrit_ = 0;
@@ -544,6 +598,8 @@ void MainWindow::clearPackets() {
     criticalLabel_->setText("● 0 CRITICAL");
     selectedRow_ = -1;
     showToast("🗑 Telemetry cleared");
+
+    if (wasActive) drainTimer_->start();
 }
 
 void MainWindow::savePcap() {

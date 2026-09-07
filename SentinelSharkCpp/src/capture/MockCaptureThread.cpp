@@ -42,17 +42,25 @@ MockCaptureThread::MockCaptureThread(BoundedQueue<PacketRecord, 300>* queue, QOb
     setObjectName(QStringLiteral("MockCaptureThread"));
 }
 
+MockCaptureThread::~MockCaptureThread() {
+    stop();
+    if (isRunning()) {
+        quit();
+        wait();
+    }
+}
+
 void MockCaptureThread::stop() {
-    running_.store(false, std::memory_order_relaxed);
+    isCapturing_.store(false, std::memory_order_release);
 }
 
 void MockCaptureThread::run() {
-    running_.store(true, std::memory_order_relaxed);
+    isCapturing_.store(true, std::memory_order_release);
     emit statusChanged(QStringLiteral("Mock capture active"));
 
     auto* rng = QRandomGenerator::global();
 
-    while (running_.load(std::memory_order_relaxed)) {
+    while (isCapturing_.load(std::memory_order_acquire)) {
         // Select a random mock process
         const size_t idx  = rng->bounded(static_cast<uint>(kMockProcCount));
         const MockProc& m = kMockProcs[idx];
@@ -86,9 +94,12 @@ void MockCaptureThread::run() {
         // Drop-tail: if queue full, we simply discard — never block
         queue_->try_push(rec);
 
-        // Sleep 14–33ms for 30–70 pkts/s
+        // Sleep in 10ms intervals so stop() can exit almost instantly
         const int sleepMs = rng->bounded(14, 34);
-        QThread::msleep(static_cast<unsigned long>(sleepMs));
+        for (int elapsed = 0; elapsed < sleepMs; elapsed += 10) {
+            if (!isCapturing_.load(std::memory_order_acquire)) break;
+            QThread::msleep(std::min(10, sleepMs - elapsed));
+        }
     }
 
     emit statusChanged(QStringLiteral("Mock capture stopped"));
