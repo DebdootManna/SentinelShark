@@ -1,0 +1,10 @@
+{
+  "description": "Real-time network and endpoint detection platform that correlates processes with traffic, enriches threats, and enables active incident response for SecOps teams.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
