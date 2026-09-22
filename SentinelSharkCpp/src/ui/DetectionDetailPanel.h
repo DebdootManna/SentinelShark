@@ -38,6 +38,7 @@ private:
     QLabel*  alertDstLabel_;
     QLabel*  alertProtoLabel_;
     QLabel*  alertPortLabel_;
+    QFrame*  sep_ = nullptr;
 
     // UDM JSON viewer
     QTextEdit* udmJsonEdit_;

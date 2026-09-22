@@ -10,7 +10,7 @@ SeverityDelegate::SeverityDelegate(QObject* parent)
     : QStyledItemDelegate(parent)
 {
     monoFont_.setFamily("JetBrains Mono");
-    monoFont_.setPointSize(8);
+    monoFont_.setPointSize(9);
     monoFont_.setWeight(QFont::DemiBold);
     if (!QFontInfo(monoFont_).exactMatch()) {
         monoFont_.setFamily("Consolas");
@@ -70,7 +70,7 @@ void SeverityDelegate::drawPill(QPainter* painter, const QRectF& rect,
     // Pill dimensions: height constrained, width from text
     QFontMetrics fm(monoFont_);
     const int tw     = fm.horizontalAdvance(text);
-    const int ph     = 16; // pill height in px
+    const int ph     = 18; // pill height in px
     const int pw     = tw + 14; // horizontal padding 7px each side
     const int px     = static_cast<int>(rect.left());
     const int py     = static_cast<int>(rect.center().y() - ph / 2);

@@ -15,10 +15,10 @@ PacketTableModel::PacketTableModel(QObject* parent)
     : QAbstractTableModel(parent)
 {
     monoFont_.setFamily("JetBrains Mono");
-    monoFont_.setPointSize(9);
+    monoFont_.setPointSize(10);
     if (!QFontInfo(monoFont_).exactMatch()) {
         monoFont_.setFamily("Consolas");
-        monoFont_.setPointSize(9);
+        monoFont_.setPointSize(10);
     }
 }
 
@@ -123,7 +123,7 @@ QVariant PacketTableModel::headerData(int section, Qt::Orientation orientation, 
         return QBrush(Colors::SURFACE);
     case Qt::FontRole: {
         QFont f;
-        f.setPointSize(8);
+        f.setPointSize(9);
         f.setWeight(QFont::Bold);
         f.setLetterSpacing(QFont::AbsoluteSpacing, 0.8);
         return f;

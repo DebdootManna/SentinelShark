@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(SentinelShark VERSION 2.2.0 LANGUAGES C CXX)
+project(SentinelShark VERSION 2.2.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -119,6 +119,29 @@ if(MSVC)
     target_link_options(SentinelShark PRIVATE
         $<$<CONFIG:Release>:/OPT:REF /OPT:ICF>
     )
+endif()
+
+# MinGW: statically link compiler runtime to eliminate DLL dependencies
+# on libgcc_s_seh-1.dll, libstdc++-6.dll, and libwinpthread-1.dll
+if(MINGW)
+    target_compile_options(SentinelShark PRIVATE
+        -Wall -Wextra
+        $<$<CONFIG:Release>:-O2>
+    )
+    target_link_options(SentinelShark PRIVATE
+        -static-libgcc
+        -static-libstdc++
+    )
+    # Statically link winpthread
+    find_library(WINPTHREAD_STATIC_LIB
+        NAMES libwinpthread.a
+        HINTS ${CMAKE_CXX_COMPILER}/../../x86_64-w64-mingw32/lib
+    )
+    if(WINPTHREAD_STATIC_LIB)
+        target_link_libraries(SentinelShark PRIVATE ${WINPTHREAD_STATIC_LIB})
+    else()
+        target_link_libraries(SentinelShark PRIVATE -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic)
+    endif()
 endif()
 
 # Installation rules

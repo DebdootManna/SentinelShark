@@ -38,45 +38,48 @@ void DetectionDetailPanel::setupUi() {
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scroll->setStyleSheet("background: #0D1117; border: none;");
 
     auto* content = new QWidget(scroll);
     content->setStyleSheet("background: #0D1117;");
     auto* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(12, 12, 12, 12);
-    contentLayout->setSpacing(12);
+    contentLayout->setContentsMargins(10, 8, 10, 8);
+    contentLayout->setSpacing(8);
 
     // Alert banner
     alertBanner_ = new QFrame(content);
-    alertBanner_->setStyleSheet("QFrame { background: #3D1A1A; border: 1px solid #5A1E1E; border-radius: 6px; }");
+    alertBanner_->setObjectName("alertBanner");
+    alertBanner_->setStyleSheet("QFrame#alertBanner { background: #3D1A1A; border: 1px solid #5A1E1E; border-radius: 6px; }");
     auto* bannerLayout = new QVBoxLayout(alertBanner_);
-    bannerLayout->setContentsMargins(14, 10, 14, 10);
-    bannerLayout->setSpacing(6);
+    bannerLayout->setContentsMargins(12, 8, 12, 8);
+    bannerLayout->setSpacing(4);
 
     auto* bannerTop = new QHBoxLayout();
     auto* bannerLeft = new QVBoxLayout();
     alertTitleLabel_ = new QLabel("⚠ CRITICAL THREAT DETECTED", alertBanner_);
-    alertTitleLabel_->setStyleSheet("color:#F85149; font-size:12px; font-weight:700;");
+    alertTitleLabel_->setStyleSheet("color:#F85149; font-size:13px; font-weight:700; background:transparent; border:none;");
     alertInfoLabel_  = new QLabel("—", alertBanner_);
-    alertInfoLabel_->setStyleSheet("color:#E6EDF3; font-size:11px;");
+    alertInfoLabel_->setStyleSheet("color:#E6EDF3; font-size:12px; background:transparent; border:none;");
     alertInfoLabel_->setWordWrap(true);
     bannerLeft->addWidget(alertTitleLabel_);
     bannerLeft->addWidget(alertInfoLabel_);
     alertMitreLabel_ = new QLabel("—", alertBanner_);
-    alertMitreLabel_->setStyleSheet("background:#1F3A5F; color:#58A6FF; border:1px solid #2A4A7A; border-radius:3px; padding:2px 6px; font-size:10px; font-weight:700; font-family:'JetBrains Mono',Consolas;");
+    alertMitreLabel_->setStyleSheet("background:#1F3A5F; color:#58A6FF; border:1px solid #2A4A7A; border-radius:3px; padding:2px 8px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',Consolas;");
     alertMitreLabel_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     bannerTop->addLayout(bannerLeft);
     bannerTop->addStretch();
     bannerTop->addWidget(alertMitreLabel_);
 
     auto* bannerBottom = new QHBoxLayout();
-    bannerBottom->setSpacing(16);
+    bannerBottom->setSpacing(14);
     auto addMetaItem = [&](const QString& lbl, QLabel*& val) {
         auto* col = new QVBoxLayout();
+        col->setSpacing(2);
         auto* lblW = new QLabel(lbl, alertBanner_);
-        lblW->setStyleSheet("color:#484F58; font-size:9px; text-transform:uppercase; letter-spacing:0.06em;");
+        lblW->setStyleSheet("color:#8B949E; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; background:transparent; border:none;");
         val = new QLabel("—", alertBanner_);
-        val->setStyleSheet("color:#E6EDF3; font-size:10px; font-family:'JetBrains Mono',Consolas;");
+        val->setStyleSheet("color:#E6EDF3; font-size:11px; font-family:'JetBrains Mono',Consolas; background:transparent; border:none;");
         col->addWidget(lblW);
         col->addWidget(val);
         bannerBottom->addLayout(col);
@@ -86,36 +89,37 @@ void DetectionDetailPanel::setupUi() {
     addMetaItem("DST",   alertDstLabel_);
     addMetaItem("PROTO", alertProtoLabel_);
     addMetaItem("PORT",  alertPortLabel_);
+    bannerBottom->addStretch();
 
-    auto* sep = new QFrame(alertBanner_);
-    sep->setFrameShape(QFrame::HLine);
-    sep->setStyleSheet("border: none; border-top: 1px solid #5A1E1E;");
+    sep_ = new QFrame(alertBanner_);
+    sep_->setFrameShape(QFrame::HLine);
+    sep_->setStyleSheet("border: none; border-top: 1px solid #5A1E1E;");
 
     bannerLayout->addLayout(bannerTop);
-    bannerLayout->addWidget(sep);
+    bannerLayout->addWidget(sep_);
     bannerLayout->addLayout(bannerBottom);
     contentLayout->addWidget(alertBanner_);
 
     // UDM JSON
     auto* udmHdr = new QLabel("UDM EVENT JSON", content);
-    udmHdr->setStyleSheet("color:#8B949E; font-size:9px; font-weight:700; letter-spacing:0.08em;");
+    udmHdr->setStyleSheet("color:#8B949E; font-size:10px; font-weight:700; letter-spacing:0.08em;");
     contentLayout->addWidget(udmHdr);
 
     udmJsonEdit_ = new QTextEdit(content);
     udmJsonEdit_->setReadOnly(true);
     udmJsonEdit_->setMaximumHeight(200);
-    udmJsonEdit_->setStyleSheet("QTextEdit { background:#080C11; color:#8B949E; border:1px solid #30363D; border-radius:4px; font-family:'JetBrains Mono',Consolas; font-size:9px; padding:10px; }");
+    udmJsonEdit_->setStyleSheet("QTextEdit { background:#080C11; color:#8B949E; border:1px solid #30363D; border-radius:4px; font-family:'JetBrains Mono',Consolas; font-size:10px; padding:10px; }");
     contentLayout->addWidget(udmJsonEdit_);
 
     // Related alerts
     auto* relatedHdr = new QLabel("RELATED ALERTS (LAST 24H)", content);
-    relatedHdr->setStyleSheet("color:#8B949E; font-size:9px; font-weight:700; letter-spacing:0.08em;");
+    relatedHdr->setStyleSheet("color:#8B949E; font-size:10px; font-weight:700; letter-spacing:0.08em;");
     contentLayout->addWidget(relatedHdr);
 
     relatedAlertsWidget_ = new QWidget(content);
     auto* relLayout = new QVBoxLayout(relatedAlertsWidget_);
     relLayout->setContentsMargins(0, 0, 0, 0);
-    relLayout->setSpacing(4);
+    relLayout->setSpacing(3);
     const struct { const char* time; const char* desc; const char* sev; } kRelated[] = {
         {"08:52", "Same process spawned suspicious child",      "HIGH"},
         {"08:41", "Persistence via scheduled task added",       "CRITICAL"},
@@ -127,10 +131,10 @@ void DetectionDetailPanel::setupUi() {
         auto* rLayout = new QHBoxLayout(row);
         rLayout->setContentsMargins(8, 5, 8, 5);
         auto* timeL = new QLabel(a.time, row);
-        timeL->setStyleSheet("color:#484F58; font-size:9px; font-family:'JetBrains Mono',Consolas;");
-        timeL->setFixedWidth(32);
+        timeL->setStyleSheet("color:#484F58; font-size:10px; font-family:'JetBrains Mono',Consolas;");
+        timeL->setFixedWidth(36);
         auto* descL = new QLabel(a.desc, row);
-        descL->setStyleSheet("color:#8B949E; font-size:10px;");
+        descL->setStyleSheet("color:#8B949E; font-size:11px;");
         auto* sevL = new QLabel(a.sev, row);
         const QColor sevBg = QString(a.sev) == "CRITICAL" ? QColor("#3D1A1A") :
                               QString(a.sev) == "HIGH"     ? QColor("#2D1F1A") :
@@ -159,28 +163,28 @@ void DetectionDetailPanel::setupUi() {
     actionLayout->setSpacing(8);
 
     auto* irLabel = new QLabel("IR ACTIONS", actionBar);
-    irLabel->setStyleSheet("color:#484F58; font-size:9px; font-weight:700; letter-spacing:0.08em;");
+    irLabel->setStyleSheet("color:#484F58; font-size:10px; font-weight:700; letter-spacing:0.08em;");
     actionLayout->addWidget(irLabel);
     actionLayout->addSpacing(4);
 
     killBtn_ = new QPushButton("⛔  Kill Process", actionBar);
-    killBtn_->setStyleSheet("QPushButton { background:#3D1A1A; color:#F85149; border:1px solid rgba(248,81,73,0.38); border-radius:4px; font-size:11px; font-weight:700; padding:6px 14px; } QPushButton:hover { background:#5A1E1E; }");
+    killBtn_->setStyleSheet("QPushButton { background:#3D1A1A; color:#F85149; border:1px solid rgba(248,81,73,0.38); border-radius:4px; font-size:12px; font-weight:700; padding:6px 14px; } QPushButton:hover { background:#5A1E1E; }");
     killBtn_->setCursor(Qt::PointingHandCursor);
 
     blockBtn_ = new QPushButton("🛡  Block Remote IP", actionBar);
-    blockBtn_->setStyleSheet("QPushButton { background:#3D2E0A; color:#D29922; border:1px solid rgba(210,153,34,0.38); border-radius:4px; font-size:11px; font-weight:700; padding:6px 14px; } QPushButton:hover { background:#5A4010; }");
+    blockBtn_->setStyleSheet("QPushButton { background:#3D2E0A; color:#D29922; border:1px solid rgba(210,153,34,0.38); border-radius:4px; font-size:12px; font-weight:700; padding:6px 14px; } QPushButton:hover { background:#5A4010; }");
     blockBtn_->setCursor(Qt::PointingHandCursor);
 
     quarantineBtn_ = new QPushButton("📦  Quarantine Binary", actionBar);
-    quarantineBtn_->setStyleSheet("QPushButton { background:transparent; color:#E6EDF3; border:1px solid #30363D; border-radius:4px; font-size:11px; font-weight:600; padding:6px 14px; } QPushButton:hover { background:#161B22; }");
+    quarantineBtn_->setStyleSheet("QPushButton { background:transparent; color:#E6EDF3; border:1px solid #30363D; border-radius:4px; font-size:12px; font-weight:600; padding:6px 14px; } QPushButton:hover { background:#161B22; }");
     quarantineBtn_->setCursor(Qt::PointingHandCursor);
 
     copyUdmBtn_ = new QPushButton("📋  Copy UDM JSON", actionBar);
-    copyUdmBtn_->setStyleSheet("QPushButton { background:transparent; color:#8B949E; border:none; font-size:11px; font-weight:500; padding:6px 14px; } QPushButton:hover { color:#E6EDF3; }");
+    copyUdmBtn_->setStyleSheet("QPushButton { background:transparent; color:#8B949E; border:none; font-size:12px; font-weight:500; padding:6px 14px; } QPushButton:hover { color:#E6EDF3; }");
     copyUdmBtn_->setCursor(Qt::PointingHandCursor);
 
     caseIdLabel_ = new QLabel("Case ID  INC-2024-0001", actionBar);
-    caseIdLabel_->setStyleSheet("color:#58A6FF; font-size:10px; font-family:'JetBrains Mono',Consolas;");
+    caseIdLabel_->setStyleSheet("color:#58A6FF; font-size:11px; font-family:'JetBrains Mono',Consolas;");
 
     actionLayout->addWidget(killBtn_);
     actionLayout->addWidget(blockBtn_);
@@ -210,14 +214,17 @@ void DetectionDetailPanel::populate(const PacketRecord& pkt,
     // Alert banner
     const auto sc = severityColors(pkt.severity);
     alertBanner_->setStyleSheet(QStringLiteral(
-        "QFrame { background:%1; border:1px solid %2; border-radius:6px; }")
+        "QFrame#alertBanner { background:%1; border:1px solid %2; border-radius:6px; }")
             .arg(sc.bg.name(), sc.border.name()));
+    if (sep_) {
+        sep_->setStyleSheet(QStringLiteral("border: none; border-top: 1px solid %1;").arg(sc.border.name()));
+    }
 
     const QString title = pkt.severity == Severity::Critical ? "⚠ CRITICAL THREAT DETECTED" :
                            pkt.severity == Severity::High     ? "⚡ HIGH SEVERITY EVENT"      :
                                                                 "ℹ MEDIUM SEVERITY EVENT";
     alertTitleLabel_->setText(title);
-    alertTitleLabel_->setStyleSheet(QStringLiteral("color:%1; font-size:12px; font-weight:700;")
+    alertTitleLabel_->setStyleSheet(QStringLiteral("color:%1; font-size:13px; font-weight:700; background:transparent; border:none;")
                                         .arg(sc.fg.name()));
     alertInfoLabel_->setText(pkt.infoStr());
     alertMitreLabel_->setText(pkt.mitreStr().isEmpty() ? "—" : pkt.mitreStr());

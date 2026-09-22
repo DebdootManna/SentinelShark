@@ -179,12 +179,12 @@ void MainWindow::setupUi() {
             gridline-color: #21262D;
             selection-background-color: transparent;
         }
-        QTableView::item { padding: 0px 10px; border-bottom: 1px solid #21262D; }
+        QTableView::item { padding: 0px 4px; border-bottom: 1px solid #21262D; }
         QTableView::item:selected { background-color: rgba(88,166,255,0.12); }
         QHeaderView::section {
             background-color: #161B22;
             color: #8B949E;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: 0.8px;
             border: none;
@@ -197,7 +197,7 @@ void MainWindow::setupUi() {
     tableView_->setSelectionMode(QAbstractItemView::SingleSelection);
     tableView_->setShowGrid(false);
     tableView_->verticalHeader()->setVisible(false);
-    tableView_->verticalHeader()->setDefaultSectionSize(24);
+    tableView_->verticalHeader()->setDefaultSectionSize(26);
     tableView_->horizontalHeader()->setStretchLastSection(true);
     tableView_->horizontalHeader()->setSectionResizeMode(Col::NO,       QHeaderView::Fixed);
     tableView_->horizontalHeader()->setSectionResizeMode(Col::TIME,     QHeaderView::Fixed);
@@ -209,15 +209,15 @@ void MainWindow::setupUi() {
     tableView_->horizontalHeader()->setSectionResizeMode(Col::LENGTH,   QHeaderView::Fixed);
     tableView_->horizontalHeader()->setSectionResizeMode(Col::MITRE,    QHeaderView::Fixed);
     tableView_->horizontalHeader()->setSectionResizeMode(Col::SEVERITY, QHeaderView::Fixed);
-    tableView_->setColumnWidth(Col::NO,       44);
-    tableView_->setColumnWidth(Col::TIME,     90);
-    tableView_->setColumnWidth(Col::PID,      54);
-    tableView_->setColumnWidth(Col::PROCESS,  115);
-    tableView_->setColumnWidth(Col::SOURCE,   145);
-    tableView_->setColumnWidth(Col::DEST,     145);
-    tableView_->setColumnWidth(Col::PROTOCOL, 64);
-    tableView_->setColumnWidth(Col::LENGTH,   55);
-    tableView_->setColumnWidth(Col::MITRE,    88);
+    tableView_->setColumnWidth(Col::NO,       50);
+    tableView_->setColumnWidth(Col::TIME,     100);
+    tableView_->setColumnWidth(Col::PID,      50);
+    tableView_->setColumnWidth(Col::PROCESS,  110);
+    tableView_->setColumnWidth(Col::SOURCE,   155);
+    tableView_->setColumnWidth(Col::DEST,     155);
+    tableView_->setColumnWidth(Col::PROTOCOL, 68);
+    tableView_->setColumnWidth(Col::LENGTH,   58);
+    tableView_->setColumnWidth(Col::MITRE,    80);
     tableView_->setColumnWidth(Col::SEVERITY, 78);
 
     connect(tableView_->selectionModel(),

@@ -68,18 +68,18 @@ void CollapsibleSection::toggle() {
 
 static QLabel* makeLabel(const QString& txt = {}, QWidget* parent = nullptr) {
     auto* l = new QLabel(txt, parent);
-    l->setStyleSheet("color: #E6EDF3; font-size: 10px;");
+    l->setStyleSheet("color: #E6EDF3; font-size: 11px;");
     l->setWordWrap(false);
     return l;
 }
 static QLabel* makeMutedLabel(const QString& txt = {}, QWidget* parent = nullptr) {
     auto* l = new QLabel(txt, parent);
-    l->setStyleSheet("color: #8B949E; font-size: 10px;");
+    l->setStyleSheet("color: #8B949E; font-size: 11px;");
     return l;
 }
 static QLabel* makeMonoLabel(const QString& txt = {}, QWidget* parent = nullptr) {
     auto* l = new QLabel(txt, parent);
-    l->setStyleSheet("color: #E6EDF3; font-size: 10px; font-family: 'JetBrains Mono', Consolas;");
+    l->setStyleSheet("color: #E6EDF3; font-size: 11px; font-family: 'JetBrains Mono', Consolas;");
     return l;
 }
 
@@ -88,7 +88,7 @@ InspectionPanel::InspectionPanel(QWidget* parent) : QWidget(parent) {
 }
 
 void InspectionPanel::setupUi() {
-    setFixedWidth(380);
+    setMinimumWidth(320);
     setObjectName("InspectionPanel");
     setStyleSheet("QWidget#InspectionPanel { background: #0D1117; }");
 
@@ -110,7 +110,7 @@ void InspectionPanel::setupUi() {
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     scroll->setStyleSheet("QScrollArea { background: #0D1117; border: none; }");
 
     auto* content = new QWidget(scroll);
