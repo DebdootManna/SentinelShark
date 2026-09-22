@@ -43,10 +43,16 @@ Website/
 │   ├── App.tsx      # All website sections (hero, workstation, capabilities,
 │   │                # pipeline, threat intel, MITRE, UDM, response,
 │   │                # architecture, forensics, developer, open-source, footer)
+│   │                # + Lenis smooth scroll, scroll parallax, hover states.
+│   │                # Body text uses JetBrains Mono; titles use Barlow Condensed.
 │   ├── index.css    # Design tokens, typography, animations, responsive rules
 │   ├── main.tsx     # React entrypoint
 │   └── vite-env.d.ts
-├── index.html       # HTML shell (title + meta, no Figma placeholders)
+├── public/
+│   ├── favicon.svg  # Shark-fin site icon (also used for social cards)
+│   ├── robots.txt   # Allow all + sitemap reference
+│   └── sitemap.xml  # Canonical URL entry
+├── index.html       # HTML shell: SEO/OG/Twitter meta, canonical, JSON-LD
 ├── vite.config.ts   # Clean standalone config (no Figma Make plugins)
 ├── tsconfig.json
 └── package.json     # Website-scoped dependencies only

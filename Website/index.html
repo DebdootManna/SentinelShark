@@ -3,20 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SentinelShark — Open-Source Real-Time EDR &amp; Chronicle SecOps Workstation</title>
     <meta
       name="description"
-      content="SentinelShark is an open-source real-time EDR and Chronicle SecOps workstation that correlates network traffic with host processes, enriches threats, and enables operator-triggered incident response."
+      content="SentinelShark is an open-source real-time EDR and Chronicle SecOps workstation. Live packet capture, socket-to-process correlation, MITRE ATT&CK detection, threat intel, and Chronicle UDM normalization."
+    />
+    <link rel="canonical" href="https://sentinel-shark.vercel.app/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Debdoot Manna" />
+    <meta
+      name="keywords"
+      content="SentinelShark, EDR, endpoint detection and response, SecOps, Chronicle, Google SecOps, UDM, MITRE ATT&CK, LOLBin detection, PCAP analysis, threat intelligence, VirusTotal, AbuseIPDB, Shodan, IPinfo, open source security"
     />
     <meta name="theme-color" content="#09090b" />
-    <meta property="og:title" content="SentinelShark — Real-Time EDR & Chronicle SecOps Workstation" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta property="og:site_name" content="SentinelShark" />
+    <meta property="og:title" content="SentinelShark — Open-Source Real-Time EDR & Chronicle SecOps Workstation" />
     <meta
       property="og:description"
-      content="Your network is talking. SentinelShark listens. Open-source EDR correlating packets to processes with MITRE ATT&CK, threat intel, and Chronicle UDM."
+      content="Your network is talking. SentinelShark listens. Correlate packets to processes with MITRE ATT&CK, threat intel, and Chronicle UDM — then contain with operator-triggered response."
     />
     <meta property="og:type" content="website" />
-    <title>SentinelShark — Real-Time EDR &amp; Chronicle SecOps Workstation</title>
+    <meta property="og:url" content="https://sentinel-shark.vercel.app/" />
+    <meta property="og:image" content="https://sentinel-shark.vercel.app/favicon.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="SentinelShark — Open-Source Real-Time EDR & Chronicle SecOps Workstation" />
+    <meta
+      name="twitter:description"
+      content="Open-source EDR + Chronicle SecOps workstation: live capture, process correlation, MITRE ATT&CK, threat intel, UDM normalization, operator-triggered response."
+    />
+    <meta name="twitter:image" content="https://sentinel-shark.vercel.app/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SentinelShark",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": ["Windows", "macOS", "Linux"],
+        "description": "Open-source real-time Endpoint Detection & Response (EDR) and Chronicle SecOps workstation with live packet capture, socket-to-process correlation, MITRE ATT&CK heuristics, multi-provider threat intelligence, and Chronicle UDM normalization.",
+        "url": "https://sentinel-shark.vercel.app/",
+        "downloadUrl": "https://github.com/DebdootManna/SentinelShark/releases",
+        "softwareVersion": "0.1",
+        "license": "https://github.com/DebdootManna/SentinelShark/blob/main/LICENSE",
+        "author": { "@type": "Person", "name": "Debdoot Manna", "url": "https://github.com/DebdootManna" },
+        "codeRepository": "https://github.com/DebdootManna/SentinelShark",
+        "isAccessibleForFree": true
+      }
+    </script>
   </head>
   <body>
+    <noscript>
+      <div style="background:#09090b;color:#e2e2e5;font-family:monospace;padding:40px;text-align:center">
+        SentinelShark is an open-source real-time EDR &amp; Chronicle SecOps workstation.
+        Enable JavaScript to explore the site, or visit
+        <a style="color:#2dd4bf" href="https://github.com/DebdootManna/SentinelShark">GitHub</a>
+        and the
+        <a style="color:#2dd4bf" href="https://github.com/DebdootManna/SentinelShark/releases">releases page</a>.
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -49,6 +49,83 @@ function useReveal() {
 }
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
+// ── Site-wide links ─────────────────────────────────────────────────────────────
+const RELEASES_URL = 'https://github.com/DebdootManna/SentinelShark/releases'
+
+// ── Smooth scroll (Lenis, progressive enhancement) ────────────────────────────
+function useSmoothScroll() {
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    let lenis: { destroy: () => void; raf: (time: number) => void; scrollTo: (target: string) => void } | null = null
+    let rafId = 0
+    let disposed = false
+    const onClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest?.('a[href^="#"]') as HTMLAnchorElement | null
+      if (!anchor) return
+      const hash = anchor.getAttribute('href')
+      if (!hash || hash.length < 2) return
+      const el = document.querySelector(hash)
+      if (!el) return
+      e.preventDefault()
+      if (lenis) lenis.scrollTo(hash)
+      else el.scrollIntoView({ behavior: 'smooth' })
+    }
+    document.addEventListener('click', onClick)
+    ;(async () => {
+      try {
+        const mod = await import('lenis')
+        if (disposed) return
+        lenis = new mod.default({ duration: 1.15, smoothWheel: true })
+        const loop = (time: number) => {
+          lenis?.raf(time)
+          rafId = requestAnimationFrame(loop)
+        }
+        rafId = requestAnimationFrame(loop)
+      } catch {
+        /* Lenis unavailable — native smooth scroll fallback stays in place */
+      }
+    })()
+    return () => {
+      disposed = true
+      document.removeEventListener('click', onClick)
+      cancelAnimationFrame(rafId)
+      lenis?.destroy()
+      lenis = null
+    }
+  }, [])
+}
+
+// ── Parallax: elements carrying [data-parallax] drift with scroll ─────────────
+function useParallax() {
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    let rafId = 0
+    const update = () => {
+      rafId = 0
+      const vh = window.innerHeight
+      document.querySelectorAll<HTMLElement>('[data-parallax]').forEach(el => {
+        const speed = parseFloat(el.dataset.parallax || '0') || 0
+        if (!speed) return
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom < -200 || rect.top > vh + 200) return
+        const offset = (rect.top + rect.height / 2 - vh / 2) * speed
+        el.style.transform = `translate3d(0, ${offset.toFixed(1)}px, 0)`
+      })
+    }
+    const schedule = () => {
+      if (!rafId) rafId = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [])
+}
+
 function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -102,7 +179,7 @@ function Nav() {
         {/* Desktop links */}
         <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           {links.map(l => (
-            <a key={l} href={`#${l.toLowerCase()}`} style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500, textDecoration: 'none', letterSpacing: '0.01em', transition: 'color 0.2s' }}
+            <a key={l} href={`#${l.toLowerCase()}`} className="nav-link" style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 500, textDecoration: 'none', letterSpacing: '0.01em', transition: 'color 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}
             >{l}</a>
@@ -118,11 +195,11 @@ function Nav() {
           >
             <GitHubIcon size={14} /> GitHub
           </a>
-          <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer"
+          <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="btn-primary"
             style={{ background: 'var(--accent)', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '7px 16px', borderRadius: 6, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-          >Get Started</a>
+          >Download</a>
         </div>
 
         {/* Mobile menu button */}
@@ -141,7 +218,7 @@ function Nav() {
           ))}
           <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
             <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>GitHub</a>
-            <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" style={{ background: 'var(--accent)', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '6px 14px', borderRadius: 5 }}>Get Started</a>
+            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ background: 'var(--accent)', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '6px 14px', borderRadius: 5 }}>Download</a>
           </div>
         </div>
       )}
@@ -201,7 +278,7 @@ function TelemetryStream() {
   }
 
   return (
-    <div className="product-window" style={{ maxWidth: '100%', overflow: 'hidden' }}>
+    <div className="product-window" data-parallax="-0.04" style={{ maxWidth: '100%', overflow: 'hidden' }}>
       <div className="product-titlebar">
         <div className="dot dot-r" /><div className="dot dot-y" /><div className="dot dot-g" />
         <span style={{ marginLeft: 8, fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--muted)' }}>
@@ -258,7 +335,7 @@ function Hero() {
         </div>
 
         {/* Headline */}
-        <h1 id="hero-heading" className="font-display" style={{
+        <h1 id="hero-heading" data-parallax="0.06" className="font-display" style={{
           fontSize: 'clamp(3.5rem, 10vw, 9rem)',
           fontWeight: 900,
           lineHeight: 0.92,
@@ -276,18 +353,18 @@ function Hero() {
 
         {/* Subhead + CTAs */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 48, marginBottom: 64, animation: 'fadeInUp 1s ease 0.15s forwards', opacity: 0 }}>
-          <p style={{ maxWidth: 480, fontSize: 17, lineHeight: 1.65, color: 'var(--muted)', fontWeight: 400 }}>
+          <p data-parallax="0.03" style={{ maxWidth: 480, fontSize: 17, lineHeight: 1.65, color: 'var(--muted)', fontWeight: 400 }}>
             SentinelShark is an open-source EDR and SecOps workstation that correlates network traffic, host processes, threat intelligence, and security telemetry in real time.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer"
+            <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" className="btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: '#000', fontSize: 14, fontWeight: 600, textDecoration: 'none', padding: '12px 24px', borderRadius: 7, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
               <GitHubIcon size={15} /> View on GitHub
             </a>
-            <a href="#architecture"
+            <a href="#architecture" className="btn-ghost"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--text)', fontSize: 14, fontWeight: 500, textDecoration: 'none', padding: '12px 24px', borderRadius: 7, border: '1px solid var(--border-mid)', letterSpacing: '0.01em', transition: 'border-color 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--muted)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-mid)')}
@@ -393,7 +470,7 @@ function ProductUI() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
         <div className="reveal" style={{ marginBottom: 48 }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--accent)', letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 12 }}>Workstation</span>
-          <h2 className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.01em' }}>
+          <h2 data-parallax="0.04" className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.01em' }}>
             The forensic workstation.
           </h2>
         </div>
@@ -997,7 +1074,7 @@ function Architecture() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
         <div className="reveal" style={{ marginBottom: 56 }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--accent)', letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 12 }}>Architecture</span>
-          <h2 className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.01em' }}>
+          <h2 data-parallax="0.04" className="font-display" style={{ fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 800, lineHeight: 1, letterSpacing: '-0.01em' }}>
             Non-blocking<br />by design.
           </h2>
         </div>
@@ -1227,12 +1304,12 @@ function OpenSourceSection() {
             SentinelShark is MIT-licensed. Read the source, file issues, contribute. No telemetry, no license enforcement, no call-home.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 64 }}>
-            <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer"
+            <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" className="btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: '#000', fontSize: 15, fontWeight: 600, textDecoration: 'none', padding: '13px 28px', borderRadius: 7, transition: 'opacity 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             ><GitHubIcon size={16} /> View on GitHub</a>
-            <a href="https://github.com/DebdootManna/SentinelShark/wiki" target="_blank" rel="noopener noreferrer"
+            <a href="https://github.com/DebdootManna/SentinelShark/wiki" target="_blank" rel="noopener noreferrer" className="btn-ghost"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--text)', fontSize: 15, fontWeight: 500, textDecoration: 'none', padding: '13px 28px', borderRadius: 7, border: '1px solid var(--border-mid)', transition: 'border-color 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--muted)')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-mid)')}
@@ -1300,8 +1377,10 @@ function GitHubIcon({ size = 16 }: { size?: number }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
+  useSmoothScroll()
+  useParallax()
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
       <a className="skip-link" href="#main">Skip to content</a>
       <Nav />
       <main id="main">
