@@ -3,8 +3,8 @@
 #include <QVector>
 #include <QFont>
 #include <QColor>
+#include <vector>
 #include "../core/PacketRecord.h"
-#include "../core/RingBuffer.h"
 
 namespace SS {
 
@@ -64,13 +64,11 @@ inline SeverityColors severityColors(Severity s) noexcept {
     }
 }
 
-/// QAbstractTableModel backed by a RingBuffer<PacketRecord, 3000>.
+/// QAbstractTableModel backed by a dynamic std::vector<PacketRecord>.
 /// Colors are computed on-the-fly in data() — never stored in the buffer.
 class PacketTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
-    static constexpr size_t kCapacity = 3000;
-
     explicit PacketTableModel(QObject* parent = nullptr);
 
     // QAbstractTableModel overrides
@@ -90,17 +88,15 @@ public:
     /// Clear all rows.
     void clear();
 
-    /// Total packets received (including dropped/overwritten).
+    /// Total packets received.
     uint64_t totalReceived() const noexcept { return totalReceived_; }
 
-    /// Read-only access to the ring buffer (for AnalyticsSidebar::refresh).
-    const RingBuffer<PacketRecord, kCapacity>& ringBuffer() const noexcept { return buf_; }
-
-signals:
-    void rowsDropped(int count); ///< Emitted when oldest rows are evicted by ring buffer
+    /// Read-only access to packets vector.
+    const std::vector<PacketRecord>& packets() const noexcept { return buf_; }
+    const std::vector<PacketRecord>& ringBuffer() const noexcept { return buf_; }
 
 private:
-    RingBuffer<PacketRecord, kCapacity> buf_;
+    std::vector<PacketRecord> buf_;
     uint64_t totalReceived_ = 0;
     QFont monoFont_;
 

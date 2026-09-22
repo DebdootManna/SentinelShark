@@ -1,8 +1,11 @@
 #include "MainWindow.h"
 #include "InspectionPanel.h"
 #include "DetectionDetailPanel.h"
-#include "AnalyticsSidebar.h"
+#include "StatsPanel.h"
+#include "HexView.h"
 #include "SettingsDialog.h"
+#include <QTabWidget>
+#include <QScrollArea>
 #include "InterfaceSelectionDialog.h"
 #include "../model/SeverityDelegate.h"
 #include "../capture/CaptureThread.h"
@@ -246,12 +249,52 @@ void MainWindow::setupUi() {
         showToast("📋 UDM JSON copied to clipboard");
     });
 
-    analyticsPanel_ = new AnalyticsSidebar(bottomSplitter);
+    // Column 3: Analytics Sidebar & Hex Inspector Tabs matching Python workstation
+    statsPanel_ = new StatsPanel();
+    auto* statsScroll = new QScrollArea();
+    statsScroll->setWidgetResizable(true);
+    statsScroll->setWidget(statsPanel_);
+    statsScroll->setFrameShape(QFrame::NoFrame);
+    statsScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    statsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    statsScroll->setStyleSheet("QScrollArea { background-color: transparent; border: none; }");
+
+    hexView_ = new HexView();
+
+    rightTabs_ = new QTabWidget(bottomSplitter);
+    rightTabs_->setStyleSheet(R"(
+        QTabWidget::pane {
+            border: 1px solid #30363D;
+            background-color: #161B22;
+        }
+        QTabBar::tab {
+            background-color: #0D1117;
+            color: #8B949E;
+            padding: 6px 14px;
+            border: 1px solid #30363D;
+            border-bottom: none;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', Consolas, monospace;
+        }
+        QTabBar::tab:selected {
+            background-color: #161B22;
+            color: #58A6FF;
+            border-bottom: 2px solid #58A6FF;
+        }
+    )");
+    rightTabs_->addTab(statsScroll, "Analytics");
+    rightTabs_->addTab(hexView_, "Raw Hex");
+    rightTabs_->setMinimumWidth(280);
 
     bottomSplitter->addWidget(inspectionPanel_);
     bottomSplitter->addWidget(detailPanel_);
-    bottomSplitter->addWidget(analyticsPanel_);
-    bottomSplitter->setStretchFactor(1, 1); // center detection panel stretches
+    bottomSplitter->addWidget(rightTabs_);
+
+    bottomSplitter->setStretchFactor(0, 3);
+    bottomSplitter->setStretchFactor(1, 4);
+    bottomSplitter->setStretchFactor(2, 3);
+    bottomSplitter->setSizes({380, 520, 340});
 
     mainSplitter->addWidget(bottomSplitter);
     mainSplitter->setSizes({460, 340});
@@ -644,6 +687,12 @@ void MainWindow::clearPackets() {
     }
 
     model_->clear();
+    if (statsPanel_) {
+        statsPanel_->resetStats();
+    }
+    if (hexView_) {
+        hexView_->clear();
+    }
     pktCount_  = 0;
     totalCrit_ = 0;
     pktCountLabel_->setText("0 pkts");
@@ -681,11 +730,11 @@ void MainWindow::toggleMockMode() {
 
 void MainWindow::drainQueue() {
     QVector<PacketRecord> batch;
-    batch.reserve(50);
+    batch.reserve(150);
 
     PacketRecord rec;
     int drained = 0;
-    while (drained < 50 && queue_.try_pop(rec)) {
+    while (drained < 150 && queue_.try_pop(rec)) {
         batch.append(rec);
         ++drained;
     }
@@ -704,6 +753,11 @@ void MainWindow::drainQueue() {
     }
     criticalLabel_->setText(QStringLiteral("● %1 CRITICAL").arg(totalCrit_));
 
+    // Live update analytics panel in real-time
+    if (statsPanel_) {
+        statsPanel_->updatePacketsBatch(batch);
+    }
+
     // Auto-scroll
     if (AppConfig::instance().autoScroll) {
         tableView_->scrollToBottom();
@@ -713,7 +767,9 @@ void MainWindow::drainQueue() {
 // ── Analytics (5s timer) ──────────────────────────────────────────────────────
 
 void MainWindow::refreshAnalytics() {
-    analyticsPanel_->refresh(model_->ringBuffer(), model_->totalReceived());
+    if (statsPanel_) {
+        statsPanel_->refreshApiStatus();
+    }
 }
 
 // ── Row Selection ─────────────────────────────────────────────────────────────
@@ -741,6 +797,12 @@ void MainWindow::onRowSelected(const QModelIndex& current, const QModelIndex&) {
     // Populate panels immediately
     inspectionPanel_->populate(pkt, selectedProc_, selectedIntel_);
     detailPanel_->populate(pkt, selectedProc_, selectedIntel_);
+    if (statsPanel_) {
+        statsPanel_->setSelectedPacket(pkt);
+    }
+    if (hexView_) {
+        hexView_->displayPacket(pkt);
+    }
 
     // Dispatch threat intel lookup asynchronously
     threatIntel_->lookup(pkt.dstStr());
@@ -830,6 +892,9 @@ void MainWindow::openSettings() {
                 AppConfig::instance().virustotalApiKey,
                 AppConfig::instance().ipinfoApiKey,
                 AppConfig::instance().shodanApiKey);
+            if (statsPanel_) {
+                statsPanel_->refreshApiStatus();
+            }
         });
     }
     settingsDialog_->exec();

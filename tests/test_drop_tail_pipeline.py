@@ -65,8 +65,9 @@ class TestDropTailPipeline(unittest.TestCase):
             table.add_packets_batch(batch)
             stats.update_packets_batch(batch)
 
-        self.assertEqual(table.rowCount(), 2000)
-        self.assertEqual(len(table.packets), 2000)
+        self.assertEqual(table.rowCount(), 10000)
+        self.assertEqual(len(table.packets), 10000)
+        self.assertEqual(table.packets[0]["no"], "0")
 
         proc = psutil.Process(os.getpid())
         rss_mb = proc.memory_info().rss / (1024 * 1024)

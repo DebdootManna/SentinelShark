@@ -100,10 +100,10 @@ class PacketTableModel(QAbstractTableModel):
 
     COLUMNS = ["NO.", "TIME", "PID", "PROCESS", "SOURCE", "DESTINATION", "PROTOCOL", "LENGTH", "MITRE", "SEVERITY", "INFO"]
 
-    def __init__(self, parent=None, maxlen: int = 2000):
+    def __init__(self, parent=None, maxlen: Optional[int] = None):
         super().__init__(parent)
         self.maxlen = maxlen
-        self._rows: deque = deque(maxlen=maxlen)
+        self._rows = [] if maxlen is None else deque(maxlen=maxlen)
 
     def rowCount(self, parent=QModelIndex()) -> int:
         if parent.isValid():
@@ -195,14 +195,15 @@ class PacketTableModel(QAbstractTableModel):
 
         count = len(new_tuples)
         current_len = len(self._rows)
-        excess = (current_len + count) - self.maxlen
 
-        if excess > 0:
-            evict_count = min(excess, current_len)
-            self.beginRemoveRows(QModelIndex(), 0, evict_count - 1)
-            for _ in range(evict_count):
-                self._rows.popleft()
-            self.endRemoveRows()
+        if self.maxlen:
+            excess = (current_len + count) - self.maxlen
+            if excess > 0:
+                evict_count = min(excess, current_len)
+                self.beginRemoveRows(QModelIndex(), 0, evict_count - 1)
+                for _ in range(evict_count):
+                    self._rows.popleft()
+                self.endRemoveRows()
 
         insert_pos = len(self._rows)
         self.beginInsertRows(QModelIndex(), insert_pos, insert_pos + count - 1)
@@ -265,7 +266,7 @@ class PacketTable(QTableView):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._model = PacketTableModel(self, maxlen=2000)
+        self._model = PacketTableModel(self, maxlen=None)
         self.setModel(self._model)
         self.current_filter: str = ""
 

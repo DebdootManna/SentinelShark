@@ -137,24 +137,14 @@ void PacketTableModel::addPackets(const QVector<PacketRecord>& packets) {
     if (packets.isEmpty()) return;
 
     const int oldSize  = static_cast<int>(buf_.size());
-    const int maxCap   = static_cast<int>(kCapacity);
     const int incoming = packets.size();
 
-    if (oldSize + incoming <= maxCap) {
-        // Buffer has room: simple append
-        beginInsertRows({}, oldSize, oldSize + incoming - 1);
-        for (const auto& pkt : packets) {
-            buf_.push_back(pkt);
-        }
-        endInsertRows();
-    } else {
-        // Buffer will wrap/evict oldest rows: safely reset model mapping
-        beginResetModel();
-        for (const auto& pkt : packets) {
-            buf_.push_back(pkt);
-        }
-        endResetModel();
+    beginInsertRows({}, oldSize, oldSize + incoming - 1);
+    buf_.reserve(buf_.size() + static_cast<size_t>(incoming));
+    for (const auto& pkt : packets) {
+        buf_.push_back(pkt);
     }
+    endInsertRows();
 
     totalReceived_ += static_cast<uint64_t>(incoming);
 }

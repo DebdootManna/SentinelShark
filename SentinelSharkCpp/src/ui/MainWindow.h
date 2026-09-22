@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QTabWidget>
 #include <memory>
 #include "../core/PacketRecord.h"
 #include "../core/BoundedQueue.h"
@@ -20,7 +21,8 @@ namespace SS {
 
 class InspectionPanel;
 class DetectionDetailPanel;
-class AnalyticsSidebar;
+class StatsPanel;
+class HexView;
 class ThreatIntelWorker;
 class CaptureThread;
 class MockCaptureThread;
@@ -127,9 +129,11 @@ private:
     QTableView*          tableView_       = nullptr;
 
     // ── Panels ─────────────────────────────────────────────────────────────
-    InspectionPanel*     inspectionPanel_  = nullptr;
+    InspectionPanel*      inspectionPanel_ = nullptr;
     DetectionDetailPanel* detailPanel_     = nullptr;
-    AnalyticsSidebar*    analyticsPanel_   = nullptr;
+    QTabWidget*           rightTabs_       = nullptr;
+    StatsPanel*           statsPanel_      = nullptr;
+    HexView*              hexView_         = nullptr;
 
     // ── Services ───────────────────────────────────────────────────────────
     ThreatIntelWorker*   threatIntel_      = nullptr;

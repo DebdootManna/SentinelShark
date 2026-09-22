@@ -64,6 +64,10 @@ set(SOURCES
     # UI Components
     src/ui/AnalyticsSidebar.h
     src/ui/AnalyticsSidebar.cpp
+    src/ui/StatsPanel.h
+    src/ui/StatsPanel.cpp
+    src/ui/HexView.h
+    src/ui/HexView.cpp
     src/ui/DetectionDetailPanel.h
     src/ui/DetectionDetailPanel.cpp
     src/ui/InspectionPanel.h
