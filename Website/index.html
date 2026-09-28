@@ -15,8 +15,18 @@
       name="keywords"
       content="SentinelShark, EDR, endpoint detection and response, SecOps, Chronicle, Google SecOps, UDM, MITRE ATT&CK, LOLBin detection, PCAP analysis, threat intelligence, VirusTotal, AbuseIPDB, Shodan, IPinfo, open source security"
     />
-    <meta name="theme-color" content="#09090b" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme = stored ? stored : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta property="og:site_name" content="SentinelShark" />
@@ -58,12 +68,12 @@
   </head>
   <body>
     <noscript>
-      <div style="background:#09090b;color:#e2e2e5;font-family:monospace;padding:40px;text-align:center">
+      <div style="background:var(--bg,#09090b);color:var(--text,#e2e2e5);font-family:monospace;padding:40px;text-align:center">
         SentinelShark is an open-source real-time EDR &amp; Chronicle SecOps workstation.
         Enable JavaScript to explore the site, or visit
-        <a style="color:#2dd4bf" href="https://github.com/DebdootManna/SentinelShark">GitHub</a>
+        <a style="color:var(--accent,#2dd4bf)" href="https://github.com/DebdootManna/SentinelShark">GitHub</a>
         and the
-        <a style="color:#2dd4bf" href="https://github.com/DebdootManna/SentinelShark/releases">releases page</a>.
+        <a style="color:var(--accent,#2dd4bf)" href="https://github.com/DebdootManna/SentinelShark/releases">releases page</a>.
       </div>
     </noscript>
     <div id="root"></div>

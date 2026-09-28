@@ -137,6 +137,44 @@ function Logo({ size = 28 }: { size?: number }) {
   )
 }
 
+function useTheme() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document !== 'undefined') {
+      const current = document.documentElement.dataset.theme
+      if (current === 'light' || current === 'dark') return current
+    }
+    return 'dark'
+  })
+
+  const toggleTheme = () => {
+    setTheme(current => current === 'dark' ? 'light' : 'dark')
+  }
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try {
+      localStorage.setItem('theme', theme)
+    } catch {
+      // Theme still applies when storage is unavailable.
+    }
+  }, [theme])
+
+  return { theme, toggleTheme }
+}
+
+function ThemeIcon({ theme, size = 15 }: { theme: 'light' | 'dark'; size?: number }) {
+  return theme === 'dark' ? (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+    </svg>
+  ) : (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21 14.2A8.5 8.5 0 0 1 9.8 3a8.5 8.5 0 1 0 11.2 11.2Z" />
+    </svg>
+  )
+}
+
 // ── Severity badge ────────────────────────────────────────────────────────────
 function SevBadge({ s }: { s: TelemetryRow['severity'] }) {
   const cls = { CRITICAL: 'sev-critical', HIGH: 'sev-high', SAFE: 'sev-safe', LOW: 'sev-low' }[s]
@@ -147,6 +185,7 @@ function SevBadge({ s }: { s: TelemetryRow['severity'] }) {
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -196,10 +235,14 @@ function Nav() {
             <GitHubIcon size={14} /> GitHub
           </a>
           <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="btn-primary"
-            style={{ background: 'var(--accent)', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '7px 16px', borderRadius: 6, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
+            style={{ background: 'var(--accent)', color: 'var(--accent-btn-text)', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '7px 16px', borderRadius: 6, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
           >Download</a>
+          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+            <ThemeIcon theme={theme} />
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
         </div>
 
         {/* Mobile menu button */}
@@ -218,7 +261,11 @@ function Nav() {
           ))}
           <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
             <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>GitHub</a>
-            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ background: 'var(--accent)', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '6px 14px', borderRadius: 5 }}>Download</a>
+            <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ background: 'var(--accent)', color: 'var(--accent-btn-text)', fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '6px 14px', borderRadius: 5 }}>Download</a>
+            <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
+              <ThemeIcon theme={theme} />
+              <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            </button>
           </div>
         </div>
       )}
@@ -358,7 +405,7 @@ function Hero() {
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" className="btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: '#000', fontSize: 14, fontWeight: 600, textDecoration: 'none', padding: '12px 24px', borderRadius: 7, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: 'var(--accent-btn-text)', fontSize: 14, fontWeight: 600, textDecoration: 'none', padding: '12px 24px', borderRadius: 7, letterSpacing: '0.01em', transition: 'opacity 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
@@ -660,7 +707,7 @@ function Capabilities() {
             >
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: cap.accent ? 'var(--accent)' : 'var(--dim)', letterSpacing: '0.08em', marginBottom: 16 }}>{cap.num}</div>
               <h3 className="font-display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700, color: cap.accent ? 'var(--accent)' : 'var(--text)', letterSpacing: '-0.01em', lineHeight: 1.05, marginBottom: 16 }}>{cap.title}</h3>
-              <p style={{ fontSize: 14, lineHeight: 1.7, color: cap.accent ? 'rgba(45,212,191,0.75)' : 'var(--muted)' }}>{cap.desc}</p>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: cap.accent ? 'var(--accent-muted)' : 'var(--muted)' }}>{cap.desc}</p>
             </div>
           ))}
         </div>
@@ -781,7 +828,7 @@ function ThreatIntel() {
           {providers.map((p, i) => (
             <div key={p.name} className={`ti-card reveal reveal-d${i + 1}`}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid rgba(45,212,191,0.2)', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{p.tag}</div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', padding: '2px 8px', borderRadius: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{p.tag}</div>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{p.name}</span>
               </div>
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
@@ -834,7 +881,7 @@ function MitreSection() {
             <div className="reveal" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Monitored LOLBins</div>
             <div className="reveal reveal-d1" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {lolbins.map(b => (
-                <span key={b} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--amber)', background: 'var(--amber-bg)', border: '1px solid rgba(251,191,36,0.2)', padding: '4px 12px', borderRadius: 4 }}>{b}</span>
+                <span key={b} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--amber)', background: 'var(--amber-bg)', border: '1px solid var(--amber-border-soft)', padding: '4px 12px', borderRadius: 4 }}>{b}</span>
               ))}
             </div>
             <p className="reveal reveal-d2" style={{ fontSize: 14, lineHeight: 1.75, color: 'var(--muted)', marginTop: 24 }}>
@@ -850,7 +897,7 @@ function MitreSection() {
                   <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{t.name}</span>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     {t.procs.slice(0, 3).map(p => (
-                      <span key={p} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--amber)', background: 'rgba(251,191,36,0.08)', padding: '1px 6px', borderRadius: 3 }}>{p}</span>
+                      <span key={p} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--amber)', background: 'var(--amber-bg-soft)', padding: '1px 6px', borderRadius: 3 }}>{p}</span>
                     ))}
                     {t.procs.length > 3 && <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--dim)' }}>+{t.procs.length - 3}</span>}
                   </div>
@@ -919,7 +966,7 @@ function ChronicleSection() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--dim)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Chronicle UDM JSON</span>
               </div>
-              <button type="button" onClick={handleCopy} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: copied ? 'var(--green)' : 'var(--accent)', background: 'none', border: '1px solid', borderColor: copied ? 'rgba(74,222,128,0.3)' : 'rgba(45,212,191,0.3)', padding: '4px 12px', borderRadius: 4, cursor: 'pointer', transition: 'all 0.2s' }}>
+              <button type="button" onClick={handleCopy} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: copied ? 'var(--green)' : 'var(--accent)', background: 'none', border: '1px solid', borderColor: copied ? 'var(--green-border)' : 'var(--accent-border-soft)', padding: '4px 12px', borderRadius: 4, cursor: 'pointer', transition: 'all 0.2s' }}>
                 {copied ? '✓ Copied' : 'Copy UDM JSON'}
               </button>
             </div>
@@ -1053,7 +1100,7 @@ function IncidentResponse() {
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--text)', marginBottom: 12, padding: '8px 12px', background: 'var(--surface-3)', borderRadius: 5 }}>{action.dialog.detail}</div>
                   <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 16 }}>{action.dialog.warning}</p>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={() => setActiveAction(null)} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: action.color, color: '#000', border: 'none', padding: '7px 16px', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}>{action.dialog.confirm}</button>
+                    <button type="button" onClick={() => setActiveAction(null)} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: action.color, color: 'var(--confirm-text)', border: 'none', padding: '7px 16px', borderRadius: 5, cursor: 'pointer', fontWeight: 600 }}>{action.dialog.confirm}</button>
                     <button type="button" onClick={() => setActiveAction(null)} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, background: 'none', color: 'var(--muted)', border: '1px solid var(--border-mid)', padding: '7px 16px', borderRadius: 5, cursor: 'pointer' }}>{action.dialog.cancel}</button>
                   </div>
                 </div>
@@ -1102,7 +1149,7 @@ function Architecture() {
                   ) : (
                     <div key={i} className={`arch-node ${item.accent ? 'arch-node-accent' : ''}`} style={{ width: '100%', maxWidth: 340 }}>
                       <div style={{ fontWeight: 500, marginBottom: 2 }}>{item.label}</div>
-                      <div style={{ fontSize: 10, color: item.accent ? 'rgba(45,212,191,0.6)' : 'var(--dim)' }}>{item.note}</div>
+                      <div style={{ fontSize: 10, color: item.accent ? 'var(--accent-faint)' : 'var(--dim)' }}>{item.note}</div>
                     </div>
                   )
                 ))}
@@ -1168,7 +1215,7 @@ function PcapSection() {
             </p>
             <div className="reveal reveal-d2" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
               {['.pcap', '.pcapng', '.cap'].map(ext => (
-                <span key={ext} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid rgba(45,212,191,0.2)', padding: '4px 12px', borderRadius: 4 }}>{ext}</span>
+                <span key={ext} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--accent)', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', padding: '4px 12px', borderRadius: 4 }}>{ext}</span>
               ))}
             </div>
             <div className="reveal reveal-d3" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1199,7 +1246,7 @@ function PcapSection() {
                   ].map(([off, hex, asc]) => (
                     <div key={off} className="hex-row" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, lineHeight: 1.8, display: 'grid', gridTemplateColumns: '64px 1fr 1fr', gap: 12 }}>
                       <span style={{ color: 'var(--dim)' }}>{off}</span>
-                      <span style={{ color: '#93c5fd' }}>{hex}</span>
+                      <span style={{ color: 'var(--code-blue)' }}>{hex}</span>
                       <span style={{ color: 'var(--green)' }}>{asc}</span>
                     </div>
                   ))}
@@ -1305,7 +1352,7 @@ function OpenSourceSection() {
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 64 }}>
             <a href="https://github.com/DebdootManna/SentinelShark" target="_blank" rel="noopener noreferrer" className="btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: '#000', fontSize: 15, fontWeight: 600, textDecoration: 'none', padding: '13px 28px', borderRadius: 7, transition: 'opacity 0.2s' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--accent)', color: 'var(--accent-btn-text)', fontSize: 15, fontWeight: 600, textDecoration: 'none', padding: '13px 28px', borderRadius: 7, transition: 'opacity 0.2s' }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             ><GitHubIcon size={16} /> View on GitHub</a>
